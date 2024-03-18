@@ -1,0 +1,177 @@
+---
+title: "Phyloseq PreProcessing"
+author: "Daniyal Tariq"
+date: "2024-03-18"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/02_PreProcessing/") # send any figure output to this folder
+```
+
+```{r}
+library(devtools)
+#devtools::install_github("joey711/phyloseq")
+library(phyloseq)
+library(tidyverse)
+```
+
+```{r}
+# First, load asv table
+load("data/02_DADA2/ASV_counts.RData")
+
+# Inspect asv_tab
+head(asv_tab)[,1:5]
+```
+
+```{r}
+# Fix names 
+sample_names <- colnames(asv_tab)
+samples_fixed <- sapply(strsplit(basename(sample_names), "_"), `[`,1) 
+head(samples_fixed)
+
+# re-write the ASV count file to fix names 
+colnames(asv_tab) <- samples_fixed
+str(asv_tab)
+```
+
+```{r}
+tax_df <- read.table("data/02_DADA2/ASV_taxonomy.tsv", sep = "\t", skip = 1)
+head(tax_df)
+
+colnames(tax_df) <- c("asv_names", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species", "ASV", "ASVseq")
+
+head(tax_df)
+
+# Taxonomy Table Matrix
+tax_mat <- 
+  tax_df %>%
+  tibble::column_to_rownames(., var = "asv_names") %>%
+  as.matrix()
+```
+
+```{r}
+load("data/02_DADA2/track_read_counts.RData")
+
+# Take a look at the data
+head(track_counts_df)
+dim(track_counts_df)
+```
+
+
+```{r}
+metadata_df <- read.csv("data/metadata.csv")
+dim(metadata_df)
+colnames(metadata_df)
+# Merge metadata_df with track_reads_df 
+head(metadata_df)
+head(track_counts_df)
+```
+
+```{r}
+metadata_track_reads_df <- 
+  metadata_df %>%
+  left_join(., track_counts_df, by = "names") 
+
+# Intuition check 
+head(metadata_track_reads_df)
+```
+
+```{r}
+# Update row.names to be sample names 
+## Before 
+row.names(metadata_track_reads_df)
+
+# Rewrite 
+row.names(metadata_track_reads_df) <- metadata_track_reads_df$names
+# Check afterwards that it worked 
+row.names(metadata_track_reads_df)
+
+# intuition check
+head(metadata_track_reads_df)
+```
+
+```{r}
+# double check it's all good 
+dim(asv_tab)
+dim(tax_mat)
+# Intuition check 
+stopifnot(row.names(asv_tab) == row.names(tax_mat))
+```
+
+```{r}
+# Construct the phyloseq object 
+raw_physeq <- phyloseq(otu_table(asv_tab, taxa_are_rows = TRUE),
+                       sample_data(metadata_track_reads_df),
+                       tax_table(tax_mat))
+raw_physeq
+# Save this raw phyloseq object 
+save(raw_physeq, file = "data/02_PreProcessing/raw_physeq.RData")
+```
+
+```{r}
+# Remind myself of tax table 
+#View(tax_mat)
+
+# Make new physeq without chloroplasts
+noChloros_physeq <- 
+  raw_physeq %>% 
+  # rm chloroplasts
+  subset_taxa(Order != "Chloroplast" | is.na(Order))
+  
+# How many taxa were chloroplasts? 
+num_chloro_ASVs <- ntaxa(raw_physeq) - ntaxa(noChloros_physeq)
+num_chloro_ASVs
+```
+
+```{r}
+# Intuition chek 
+#noChloros_physeq %>%
+#  tax_table() %>%
+#  data.frame() %>%
+#  View()
+
+# remove mitochondria 
+noChlorosMitos_physeq <- 
+  noChloros_physeq %>%
+  subset_taxa(Family != "Mitochondria" | is.na(Family))
+
+# How many mitochondrial ASVs? 
+num_mito_ASVs <- ntaxa(noChloros_physeq) - ntaxa(noChlorosMitos_physeq)
+num_mito_ASVs
+```
+
+```{r}
+noChlorosMitos_physeq
+
+# How many total asvs were removed from chloros and mitos 
+ntaxa(raw_physeq) - ntaxa(noChlorosMitos_physeq)
+
+# proportion of asvs kept? 
+ntaxa(noChlorosMitos_physeq)/ntaxa(raw_physeq)
+```
+
+
+```{r}
+# create a vector of samples that were negative controls 
+control_samples <- c("waterA06222016", "waterB06222016", 
+                     "waterC06222016", "waterD06222016")
+
+# Make a new phyloseq object of only the control samples 
+control_physeq <- 
+  noChlorosMitos_physeq %>%
+  subset_samples(., names %in% control_samples) 
+
+
+
+
+```
+
