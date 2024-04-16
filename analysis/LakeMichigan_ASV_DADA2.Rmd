@@ -1,0 +1,457 @@
+---
+title: "Inferring_ASVs_Lake_Michigan"
+output: html_document
+date: "`r Sys.Date()`"
+editor_options: 
+  chunk_output_type: console
+---
+```{r setting-seed}
+set.seed(033094)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-libraries}
+#install.packages("pacman")
+#install.packages("gridExtra")
+library(gridExtra)
+library(pacman)
+library(patchwork)
+pacman::p_load(tidyverse, devtools, dada2, phyloseq, patchwork, DT, 
+               install = FALSE)
+```
+
+## Loading data
+```{r load-data}
+
+# Set the raw fastq path to the raw sequencing files 
+# Path to the fastq files 
+raw_fastqs_path <- "data/02_DADA2/raw_gzipped_fastqs/"
+raw_fastqs_path
+
+# Intuition check
+head(list.files(raw_fastqs_path))
+
+#Looking at how many files there are
+
+str(list.files(raw_fastqs_path))
+
+# Create vector of forward reads
+forward_reads <- list.files(raw_fastqs_path, pattern = "R1_001.fastq.gz", full.names = TRUE)  
+# Intuition Check 
+head(forward_reads)  
+
+# Create a vector of reverse reads 
+reverse_reads <- list.files(raw_fastqs_path, pattern = "R2_001.fastq.gz", full.names = TRUE)
+head(reverse_reads)
+
+```
+
+## Initial Raw Read Quality Assessment
+
+```{r raw-read-assessment}
+
+#Randomly selecting 12 samples from the dataset
+random_samples <- sample(1:length(reverse_reads), size = 12)
+random_samples
+
+#Plotting quality of forward and reverse reads for randomly chosen samples
+
+forward_RawQual_plot_12 <- plotQualityProfile(forward_reads[random_samples]) + 
+  labs(title = "Forward Read Raw Quality")
+
+reverse_RawQual_plot_12 <- plotQualityProfile(reverse_reads[random_samples]) + 
+  labs(title = "Reverse Read Raw Quality")
+
+
+
+grid.arrange(forward_RawQual_plot_12, reverse_RawQual_plot_12, ncol = 2) 
+
+
+```
+
+```{r Aggregating QC_Raw PLots}
+# Aggregate all QC plots 
+# Forward reads
+forward_preQC_plot <- 
+  plotQualityProfile(forward_reads,n = 30000 ,aggregate = TRUE) + 
+  labs(title = "Forward Pre-QC")
+forward_preQC_plot
+
+# reverse reads
+reverse_preQC_plot <- 
+  plotQualityProfile(reverse_reads, aggregate = TRUE) + 
+  labs(title = "Reverse Pre-QC")
+reverse_preQC_plot
+#Aggregating forward and reverse
+preQC_aggregate_plot <- 
+  # Plot the forward and reverse together 
+  forward_preQC_plot + reverse_preQC_plot
+#Show aggregated Plots
+grid.arrange(forward_preQC_plot, reverse_preQC_plot, ncol = 2) 
+
+```
+
+##Prepare a placeholder for filtered reads
+```{r Placeholder for filtered reads}
+# vector of our samples, extract sample name from files 
+samples <- sapply(strsplit(basename(forward_reads), "_"), `[`,1) 
+# Intuition Check 
+head(samples)
+
+# Place filtered reads into filtered_fastqs_path
+filtered_fastqs_path <- "data/02_DADA2/02_filtered_fastqs"
+filtered_fastqs_path
+
+# create 2 variables: filtered_F, filtered_R
+filtered_forward_reads <- 
+  file.path(filtered_fastqs_path, paste0(samples, "_R1_filtered.fastq.gz"))
+length(filtered_forward_reads)
+# reverse reads
+filtered_reverse_reads <- 
+  file.path(filtered_fastqs_path, paste0(samples, "_R2_filtered.fastq.gz"))
+head(filtered_reverse_reads)
+
+```
+
+```{r Filter and Trim}
+
+filtered_reads <- filterAndTrim(forward_reads, filtered_forward_reads,
+              reverse_reads, filtered_reverse_reads,
+              truncLen = c(240,225), trimLeft = c(3,3), # The reverse reads seem to decay after 225 while the forward reads seeam to decay at 240
+              maxN = 0, maxEE = c(2,2), truncQ = 2, #the data seems a bit noisy so we went for the stringent maxEE of 1
+              rm.phix = TRUE, compress = TRUE, 
+              multithread = 5)
+
+
+```
+
+```{r Assess plot quality}
+# Plot the 12 random samples after QC
+forward_filteredQual_plot_12 <- 
+  plotQualityProfile(filtered_forward_reads[random_samples]) + 
+  labs(title = "Trimmed Forward Read Quality")
+
+reverse_filteredQual_plot_12 <- 
+  plotQualityProfile(filtered_reverse_reads[random_samples]) + 
+  labs(title = "Trimmed Reverse Read Quality")
+
+# Put the two plots together 
+
+grid.arrange(forward_filteredQual_plot_12, reverse_filteredQual_plot_12, ncol = 2)
+```
+
+
+```{r}
+# Aggregate all QC plots 
+# Forward reads
+forward_postQC_plot <- 
+  plotQualityProfile(filtered_forward_reads, aggregate = TRUE) + 
+  labs(title = "Forward Post-QC")
+
+# reverse reads
+reverse_postQC_plot <- 
+  plotQualityProfile(filtered_reverse_reads, aggregate = TRUE) + 
+  labs(title = "Reverse Post-QC")
+
+grid.arrange(forward_postQC_plot, reverse_postQC_plot, ncol = 2)
+
+```
+
+
+```{r}
+# Make output into dataframe 
+filtered_df <- as.data.frame(filtered_reads)
+head(filtered_df)
+
+ #calculate some stats 
+filtered_df %>%
+  reframe(median_reads_in = median(reads.in),
+          median_reads_out = median(reads.out),
+          median_percent_retained = (median(reads.out)/median(reads.in)))
+
+
+
+```
+
+## Error Modeling 
+
+# Learn the Errors
+
+```{r error-modeling}
+# Forward reads 
+error_forward_reads <- 
+  learnErrors(filtered_forward_reads, multithread = TRUE)
+
+# Reverse reads 
+error_reverse_reads <- 
+  learnErrors(filtered_reverse_reads, multithread = TRUE)
+
+# Plot Forward  
+forward_error_plot <- 
+  plotErrors(error_forward_reads, nominalQ = TRUE) + 
+  labs(title = "Forward Read Error Model")
+
+# Plot reverse
+reverse_error_plot <- 
+  plotErrors(error_reverse_reads, nominalQ = TRUE) + 
+  labs(title = "Reverse Read Error Model")
+
+
+```
+
+## Infer ASVs
+
+```{r}
+# Infer ASVs on the forward sequences
+dada_forward <- dada(filtered_forward_reads,
+                     err = error_forward_reads, 
+                     multithread = TRUE)
+
+# Infer ASVs on the reverse sequences 
+dada_reverse <- dada(filtered_reverse_reads,
+                     err = error_reverse_reads,
+                     multithread = TRUE)
+
+dada_reverse[30]
+```
+
+## Merge ASVs
+
+```{r}
+# merge forward and reverse ASVs
+merged_ASVs <- mergePairs(dada_forward, filtered_forward_reads, 
+                          dada_reverse, filtered_reverse_reads,
+                          verbose = TRUE)
+typeof(merged_ASVs)
+length(merged_ASVs)
+
+```
+
+## Create Raw ASV count table
+
+```{r}
+# Create the ASV Count Table 
+raw_ASV_table <- makeSequenceTable(merged_ASVs)
+
+# Write out the file to data/01_DADA2
+
+
+# Check the type and dimensions of the data
+dim(raw_ASV_table)
+class(raw_ASV_table)
+typeof(raw_ASV_table)
+table(nchar(getSequences(raw_ASV_table)))
+
+# TRIM THE ASVS
+# Let's trim the ASVs to only be the right size, which is 249.
+# 249 originates from our expected amplicon of 252 - 3bp in the forward read due to low quality.
+
+# We will allow for a few 
+raw_ASV_table_trimmed <- raw_ASV_table[,nchar(colnames(raw_ASV_table)) %in% 246:249]
+
+# Inspect the distribution of sequence lengths of all ASVs in dataset 
+table(nchar(getSequences(raw_ASV_table_trimmed)))
+
+sum(raw_ASV_table_trimmed)/sum(raw_ASV_table)
+
+# Inspect the distribution of sequence lengths of all ASVs in dataset 
+# AFTER TRIM
+data.frame(Seq_Length = nchar(getSequences(raw_ASV_table_trimmed))) %>%
+  ggplot(aes(x = Seq_Length )) + 
+  geom_histogram() + 
+  labs(title = "Trimmed distribution of ASV length")
+
+
+
+# Let's zoom in on the plot 
+data.frame(Seq_Length = nchar(getSequences(raw_ASV_table_trimmed))) %>%
+  ggplot(aes(x = Seq_Length )) + 
+  geom_histogram() + 
+  labs(title = "Trimmed distribution of ASV length") + 
+  scale_y_continuous(limits = c(0, 500))
+
+```
+
+```{r}
+# Remove the chimeras in the raw ASV table
+noChimeras_ASV_table <- removeBimeraDenovo(raw_ASV_table_trimmed, 
+                                           method="consensus", 
+                                           multithread=TRUE, verbose=TRUE)
+# Check the dimensions
+dim(noChimeras_ASV_table)
+
+# What proportion is left of the sequences? 
+sum(noChimeras_ASV_table)/sum(raw_ASV_table_trimmed)
+
+sum(noChimeras_ASV_table)/sum(raw_ASV_table)
+
+# Plot it 
+data.frame(Seq_Length_NoChim = nchar(getSequences(noChimeras_ASV_table))) %>%
+  ggplot(aes(x = Seq_Length_NoChim )) + 
+  geom_histogram()+ 
+  labs(title = "Trimmed + Chimera Removal distribution of ASV length")
+```
+
+## Track the read counts
+
+```{r}
+# A little function to identify number seqs 
+getN <- function(x) sum(getUniques(x))
+
+# Make the table to track the seqs 
+track <- cbind(filtered_reads, 
+               sapply(dada_forward, getN),
+               sapply(dada_reverse, getN),
+               sapply(merged_ASVs, getN),
+               rowSums(noChimeras_ASV_table))
+
+head(track)
+```
+
+```{r}
+# Update column names to be more informative (most are missing at the moment!)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nochim")
+rownames(track) <- samples
+
+# Generate a dataframe to track the reads through our DADA2 pipeline
+track_counts_df <- 
+  track %>%
+  # make it a dataframe
+  as.data.frame() %>%
+  rownames_to_column(var = "names") %>%
+  mutate(perc_reads_retained = 100 * nochim / input)
+
+# Visualize it in table format 
+DT::datatable(track_counts_df)
+```
+
+```{r}
+# Plot it!
+track_counts_df %>%
+  pivot_longer(input:nochim, names_to = "read_type", values_to = "num_reads") %>%
+  mutate(read_type = fct_relevel(read_type, 
+                                 "input", "filtered", "denoisedF", "denoisedR", "merged", "nochim")) %>%
+  ggplot(aes(x = read_type, y = num_reads, fill = read_type)) + 
+  geom_line(aes(group = names), color = "grey") + 
+  geom_point(shape = 21, size = 3, alpha = 0.8) + 
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(x = "Filtering Step", y = "Number of Sequences") + 
+  theme_bw()
+```
+
+```{r}
+# Classify the ASVs against a reference set using the RDP Naive Bayesian Classifier described by Wang et al., (2007) in AEM
+taxa_train <- 
+  assignTaxonomy(noChimeras_ASV_table, 
+                 "/workdir/in_class_data/taxonomy/silva_nr99_v138.1_train_set.fa.gz", 
+                 multithread=TRUE)
+
+# Add the genus/species information 
+taxa_addSpecies <- 
+  addSpecies(taxa_train, 
+             "/workdir/in_class_data/taxonomy/silva_species_assignment_v138.1.fa.gz")
+
+# Inspect the taxonomy 
+taxa_print <- taxa_addSpecies # Removing sequence rownames for display only
+rownames(taxa_print) <- NULL
+#View(taxa_print)
+```
+
+## Preparing data for export
+
+```{r}
+asv_seqs <- colnames(noChimeras_ASV_table)
+asv_seqs[1:5]
+```
+
+```{r}
+asv_headers <- vector(dim(noChimeras_ASV_table)[2], mode = "character")
+asv_headers[1:5]
+```
+
+```{r}
+# loop through vector and fill it in with ASV names 
+for (i in 1:dim(noChimeras_ASV_table)[2]) {
+  asv_headers[i] <- paste(">ASV", i, sep = "_")
+}
+
+# intitution check
+asv_headers[1:5]
+```
+
+```{r}
+##### Rename ASVs in table then write out our ASV fasta file! 
+#View(noChimeras_ASV_table)
+asv_tab <- t(noChimeras_ASV_table)
+#View(asv_tab)
+
+## Rename our asvs! 
+row.names(asv_tab) <- sub(">", "", asv_headers)
+#View(asv_tab)
+```
+
+## Taxonomy Table
+
+```{r}
+# Inspect the taxonomy table
+View(taxa_addSpecies)
+
+##### Prepare tax table 
+# Add the ASV sequences from the rownames to a column 
+new_tax_tab <- 
+  taxa_addSpecies%>%
+  as.data.frame() %>%
+  rownames_to_column(var = "ASVseqs") 
+head(new_tax_tab)
+
+# intution check 
+stopifnot(new_tax_tab$ASVseqs == colnames(noChimeras_ASV_table))
+
+# Now let's add the ASV names 
+rownames(new_tax_tab) <- rownames(asv_tab)
+head(new_tax_tab)
+
+asv_tax <- 
+  new_tax_tab %>%
+  # add rownames from count table for phyloseq handoff
+  mutate(ASV = rownames(asv_tab)) %>%
+  # Resort the columns with select
+  dplyr::select(Kingdom, Phylum, Class, Order, Family, Genus, Species, ASV, ASVseqs)
+
+head(asv_tax)
+
+# Intution check
+stopifnot(asv_tax$ASV == rownames(asv_tax), rownames(asv_tax) == rownames(asv_tab))
+```
+
+```{r}
+# FIRST, we will save our output as regular files, which will be useful later on. 
+# Save to regular .tsv file 
+# Write BOTH the modified and unmodified ASV tables to a file!
+# Write count table with ASV numbered names (e.g. ASV_1, ASV_2, etc)
+write.table(asv_tab, "data/02_DADA2/ASV_counts.tsv", sep = "\t", quote = FALSE, col.names = NA)
+# Write count table with ASV sequence names
+write.table(noChimeras_ASV_table, "data/02_DADA2/ASV_counts_withSeqNames.tsv", sep = "\t", quote = FALSE, col.names = NA)
+# Write out the fasta file for reference later on for what seq matches what ASV
+asv_fasta <- c(rbind(asv_headers, asv_seqs))
+# Save to a file!
+write(asv_fasta, "data/02_DADA2/ASVs.fasta")
+
+
+# SECOND, let's save the taxonomy tables 
+# Write the table 
+write.table(asv_tax, "data/02_DADA2/ASV_taxonomy.tsv", sep = "\t", quote = FALSE, col.names = NA)
+
+
+# THIRD, let's save to a RData object 
+# Each of these files will be used in the analysis/02_Taxonomic_Assignment
+# RData objects are for easy loading :) 
+save(noChimeras_ASV_table, file = "data/02_DADA2/noChimeras_ASV_table.RData")
+save(asv_tab, file = "data/02_DADA2/ASV_counts.RData")
+# And save the track_counts_df a R object, which we will merge with metadata information in the next step of the analysis in nalysis/02_Taxonomic_Assignment. 
+save(track_counts_df, file = "data/02_DADA2/track_read_counts.RData")
+```
+
