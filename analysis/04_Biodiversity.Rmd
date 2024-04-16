@@ -13,19 +13,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Set Seed
 
-```{r}
+```{r set-seed}
 set.seed(238428)
 ```
 
 ##Load Libraries
 
-```{r}
+```{r load-libraries}
 pacman::p_load(tidyverse, devtools, patchwork, iNEXT, phyloseq,
                install = FALSE)
 ```
 
 ## Load data
-```{r}
+```{r load-data}
 
 load("data/02_PreProcessing/raw_preprocessed_physeq.RData")
 raw_preprocessed_physeq
@@ -42,7 +42,7 @@ metadata_df <-
 head(metadata_df)
 ```
 
-```{r}
+```{r setting-lakesite-colors}
 lakesite_colors <- c("110" = "dodgerblue4","M15" = "dodgerblue2","M45" = "#D9CC3C","MLB" = "#A0E0BA")
 ```
 
@@ -56,7 +56,7 @@ lakesite_colors <- c("110" = "dodgerblue4","M15" = "dodgerblue2","M45" = "#D9CC3
 
 ##Diversity Calculations with iNEXT
 
-```{r}
+```{r making-iNEXT-df}
 iNEXT_input_df <- 
   raw_preprocessed_physeq %>%
   otu_table() %>%
@@ -65,7 +65,8 @@ iNEXT_input_df <-
 dim(iNEXT_input_df)
 ```
 
-```{r}
+## Running iNEXT for generating diversity numbers
+```{r running-iNEXT}
 #iNEXT_data <- iNEXT(iNEXT_input_df,q = c(0,1,2), datatype = "abundance")
 
 # Save the file
@@ -74,7 +75,7 @@ dim(iNEXT_input_df)
 
 
 ##Load data
-```{r}
+```{r load-iNEXT-obj}
 load("data/04_Biodiversity/iNEXT_data.RData")
 str(iNEXT_data)
 ```
@@ -115,7 +116,7 @@ iNEXT_color_df <-
 
 
 ## Plotting rarefaction with ggiNEXT
-```{r}
+```{r plotting-rarefaction-curves}
 ggiNEXT(iNEXT_data, type = 1, facet.var = "Order.q") + 
   facet_wrap(~Order.q, scales = "fixed") + 
   scale_color_manual(values = iNEXT_color_df$lakesite_colors, guide = FALSE) + 
@@ -127,6 +128,11 @@ ggiNEXT(iNEXT_data, type = 1, facet.var = "Order.q") +
   theme_bw() + 
   theme(legend.position = "none") 
 ```
+
+The rarefaction curves look very similar to those we generated in class. We note the following:
+
+1.For each q value, we see plateaus for all the samples, indicating that the library size doesn't continue to influence the measures of diversity and we have an appropriate sequencing depth for our analysis. 
+2.The curves follow the expected pattern with the richness measure at q =0, having the most ASVs. We also, see that there is not a high amount of variations between different samples from the same depth they were collected from. (Depth refers to the depth of the lake where the sample came from in this case)
 
 ## Manually plot Diversity
 
@@ -148,6 +154,7 @@ iNEXT_manual_df <-
 # Inspect 
 dim(iNEXT_manual_df)
 ```
+
 
 ```{r}
 # Plot it - Rarefaction Curve 
@@ -190,6 +197,7 @@ obs_div_df <-
 head(obs_div_df)
 ```
 
+## 
 ```{r}
 obs_div_df %>%
   ggplot(aes(x =lakesite_names, y = qD, fill = lakesite, color = lakesite)) + 
@@ -205,6 +213,7 @@ obs_div_df %>%
         legend.title = element_blank())
 ```
 
+## Looking at the effect of environmental variables
 ```{r}
 head(metadata_df)
 
@@ -215,6 +224,7 @@ env_df <-
 head(env_df)
 ```
 
+## Diversity as a function of season and lake depth
 ```{r}
 iNEXT_manual_df %>%
   dplyr::filter(Method == "Observed") %>%
@@ -229,4 +239,9 @@ iNEXT_manual_df %>%
         legend.title = element_blank())
 
 ```
+
+We looked at each measure of diversity for different depths at different seasons. We note the following:
+
+1.We see that each measure shows that at the deepest (the 110 sample) depth that was sampled, the diversity measures don't change that much and as we get closer to the surface, we see see a much greater seasonal dependence. This seems reasonable as the temperature of the water at large depths would not vary drastically between seasons and so the growth conditions for the microbes stay consistent.
+2.Generally, we also see there is a much greater variance in the summer season at all depths, judging by the presence of many outliers and large inter-quartile ranges of the boxplots. 
 
