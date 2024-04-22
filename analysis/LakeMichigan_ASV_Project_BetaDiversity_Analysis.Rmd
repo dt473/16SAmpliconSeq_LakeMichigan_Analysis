@@ -180,7 +180,7 @@ soren_station_pcoa <- plot_ordination(
   ordination = scaled_soren_pcoa,
   color = "lakesite",
   shape = "season",
-  title = "Sorensen PCoA") +
+  title = "Sorensen PCoA by season") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = lakesite_colors) + 
@@ -205,7 +205,7 @@ soren_station_pcoa <- plot_ordination(
   ordination = scaled_soren_pcoa,
   color = "lakesite",
   shape = "limnion",
-  title = "Sorensen PCoA") +
+  title = "Sorensen PCoA by limnion") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = lakesite_colors) + 
@@ -255,7 +255,7 @@ bray_station_pcoa <-
     ordination = scaled_BC_pcoa,
     color = "lakesite",
     shape = "season",
-    title = "Bray-Curtis PCoA") +
+    title = "Bray-Curtis PCoA by season") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
   scale_color_manual(values = c(lakesite_colors)) + 
@@ -278,7 +278,7 @@ bray_station_pcoa <-
     ordination = scaled_BC_pcoa,
     color = "lakesite",
     shape = "limnion",
-    title = "Bray-Curtis PCoA") +
+    title = "Bray-Curtis PCoA by limnion") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
   scale_color_manual(values = c(lakesite_colors)) + 
@@ -327,7 +327,7 @@ wUNI_station_pcoa <-
     ordination = scaled_wUNI_pcoa,
     color = "lakesite",
     shape = "season",
-    title = "Weighted Unifrac PCoA") +
+    title = "Weighted Unifrac PCoA by season") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = c(lakesite_colors)) + 
@@ -350,7 +350,7 @@ wUNI_station_pcoa <-
     ordination = scaled_wUNI_pcoa,
     color = "lakesite",
     shape = "limnion",
-    title = "Weighted Unifrac PCoA") +
+    title = "Weighted Unifrac PCoA by limnion") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = c(lakesite_colors)) + 
@@ -396,7 +396,7 @@ wUNI_station_nmds <-
     ordination = scaled_wUNI_nmds,
     color = "lakesite",
     shape = "season",
-    title = "Weighted Unifrac NMDS") +
+    title = "Weighted Unifrac NMDS by season") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = c(lakesite_colors)) + 
@@ -412,7 +412,7 @@ wUNI_station_nmds <-
     ordination = scaled_wUNI_nmds,
     color = "lakesite",
     shape = "limnion",
-    title = "Weighted Unifrac NMDS") +
+    title = "Weighted Unifrac NMDS by limnion") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = c(lakesite_colors)) + 
