@@ -5,6 +5,8 @@ date: "`r Sys.Date()`"
 editor_options: 
   chunk_output_type: console
 ---
+
+##Set the seed
 ```{r setting-seed}
 set.seed(033094)
 ```
@@ -13,14 +15,14 @@ set.seed(033094)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+##Loading relevant libraries
 ```{r load-libraries}
 #install.packages("pacman")
 #install.packages("gridExtra")
 library(gridExtra)
 library(pacman)
 library(patchwork)
-pacman::p_load(tidyverse, devtools, dada2, phyloseq, patchwork, DT, 
-               install = FALSE)
+pacman::p_load(tidyverse, devtools, dada2, phyloseq, patchwork, DT, install = FALSE)
 ```
 
 ## Loading data
@@ -72,7 +74,9 @@ grid.arrange(forward_RawQual_plot_12, reverse_RawQual_plot_12, ncol = 2)
 
 ```
 
-```{r Aggregating QC_Raw PLots}
+These plots look quite similar to the ones generated in class for the salinity gradient dataset. The quality scores at the beginning and end of both the forward and reverse reads will likely need to be trimmed. We will make the determination of how many reads to trim after the aggregated plots.
+
+```{r aggregating-pre-qc-plots}
 # Aggregate all QC plots 
 # Forward reads
 forward_preQC_plot <- 
@@ -93,6 +97,12 @@ preQC_aggregate_plot <-
 grid.arrange(forward_preQC_plot, reverse_preQC_plot, ncol = 2) 
 
 ```
+
+The aggregated pre-qc plots generated here look fairly standard. We note the following salient points:
+
+1. In general, the forward reads have a higher average score than their reverse counterparts, which is a standard feature of illumina sequencing.
+2.For both the forward and reverse reads, the average score (denoted by the green line) starts off high at the beginning of the read and gets worse as we go along the read.
+3.We get a good sense for how we may need to trim our forward and reverse reads based on this plot. Using a score of ~33-35 as a cutoff, we see that we will need to cut the forward reads around 240 bp and the reverse ones at around 225 bp. The scores decay significantly after these identified points.
 
 ##Prepare a placeholder for filtered reads
 ```{r Placeholder for filtered reads}
@@ -116,17 +126,24 @@ head(filtered_reverse_reads)
 
 ```
 
+
+##Filter and Trim Reads
 ```{r Filter and Trim}
 
 filtered_reads <- filterAndTrim(forward_reads, filtered_forward_reads,
               reverse_reads, filtered_reverse_reads,
-              truncLen = c(240,225), trimLeft = c(3,3), # The reverse reads seem to decay after 225 while the forward reads seeam to decay at 240
-              maxN = 0, maxEE = c(2,2), truncQ = 2, #the data seems a bit noisy so we went for the stringent maxEE of 1
+              truncLen = c(240,225), trimLeft = c(3,3), 
+              
+# The reverse reads seem to decay after 225 while the forward reads seeam to decay at 240
+              maxN = 0, maxEE = c(2,2), truncQ = 2,
               rm.phix = TRUE, compress = TRUE, 
               multithread = 5)
-
+#the data seems a bit noisy so we went for the stringent maxEE of 1
 
 ```
+
+
+
 
 ```{r Assess plot quality}
 # Plot the 12 random samples after QC

@@ -445,3 +445,11 @@ adonis2(scaled_bray_dist~ lakesite, data = metadata)
 adonis2(scaled_wUnifrac_dist~ lakesite, data = metadata)
 ```
 
+##Session Information
+
+```{r}
+
+#Ensure reproducibility 
+devtools::session_info()
+```
+

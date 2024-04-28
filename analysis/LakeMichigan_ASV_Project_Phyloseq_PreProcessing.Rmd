@@ -6,6 +6,16 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
+##Goals
+
+In this document, we will take the data files generated from the DADA2 workflow and create a phyloseq object. 
+
+Before we do this we will need to perform some preprocessing on the following files:
+1. ASV Table
+2. Taxonomy Table
+3. Metadata
+
+We will then remove mitochondrial and chloroplast reads.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -19,16 +29,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       fig.path = "../figures/02_PreProcessing/") # send any figure output to this folder
 ```
 
-## Goals
 
-In this document, we will take the data files generated from the DADA2 workflow and create a phyloseq object. 
-
-Before we do this we will need to perform some preprocessing on the following files:
-1. ASV Table
-2. Taxonomy Table
-3. Metadata
-
-We will then remove mitochondrial and chloroplast reads.
 
 ## Loading Relevant Packages
 ```{r loading packages}
@@ -145,6 +146,8 @@ raw_physeq
 save(raw_physeq, file = "data/02_PreProcessing/raw_physeq.RData")
 ```
 
+##Cleaning up the Data
+
 # Removing chloroplasts
 ```{r removing-chloro-asvs}
 # Make new physeq object after removing chloroplasts
@@ -205,6 +208,7 @@ noControlsChlorosMitos_physeq <-
 noControlsChlorosMitos_physeq
 ```
 
+Looks like all ASVs in the control samples have a zero count. It would appear that we don't need to remove any control ASVs from the true samples.
 
 ## Evaluating Mock Community
 
@@ -345,5 +349,12 @@ min(sample_sums(raw_preprocessed_physeq))
 ```{r}
 save(raw_preprocessed_physeq,
      file = "data/02_PreProcessing/raw_preprocessed_physeq.RData")
+```
+
+##Session Information
+
+```{r session-info}
+# Ensure reproducibility 
+devtools::session_info()
 ```
 

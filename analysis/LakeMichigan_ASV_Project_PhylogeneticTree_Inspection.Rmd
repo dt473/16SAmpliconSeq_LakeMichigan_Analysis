@@ -6,11 +6,6 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 ##Goals of this file
 
 1.Load the fastree unrooted tree.
@@ -22,16 +17,21 @@ knitr::opts_chunk$set(echo = TRUE)
 7.Save 2 phyloseq objects: 
   1. Unrooted tree phyloseq object 
   2. Rooted tree phyloseq object.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
   
 ##Set the seed
 
-```{r}
+```{r set-seed}
 set.seed(2443)
 ```
 
 ##Load Packages
 
-```{r}
+```{r load-packages}
 pacman::p_load(tidyverse, phyloseq, ggtree, phytools,
                install = FALSE)
 ```
@@ -44,6 +44,17 @@ load("data/02_PreProcessing/raw_preprocessed_physeq.RData")
 raw_preprocessed_physeq
 ```
 
+##Make different physeq objects for DNA and RNA samples
+
+```{r making-new-physeq-objects-by-subsetting}
+
+raw_preprocessed_physeq_DNA <- subset_samples(raw_preprocessed_physeq,nuc_acid_type == "DNA")
+
+raw_preprocessed_physeq_RNA <- subset_samples(raw_preprocessed_physeq,nuc_acid_type == "RNA")
+
+```
+
+
 ```{r load-tree}
 
 # Load in the tree! 
@@ -54,14 +65,19 @@ str(unrooted_tree)
 
 ##Merge Phyloseq with tree
 
-```{r}
+```{r merge-tree-with-physeq}
 # Intuition check 
 stopifnot(ntaxa(raw_preprocessed_physeq) == ntaxa(unrooted_tree))
 
 # Merge the tree with the phyloseq object 
 unrooted_physeq <- merge_phyloseq(raw_preprocessed_physeq, unrooted_tree)
+unrooted_physeq_DNA <- merge_phyloseq(raw_preprocessed_physeq_DNA,unrooted_tree)
+unrooted_physeq_RNA <- merge_phyloseq(raw_preprocessed_physeq_RNA,unrooted_tree)
+
 
 unrooted_physeq
+unrooted_physeq_DNA
+unrooted_physeq_RNA
 ```
 
 
@@ -79,7 +95,29 @@ kingdom_tree <-
   #move the legend to the bottom 
   theme(legend.position = "bottom"); kingdom_tree
 
+kingdom_tree_DNA <- 
+  ggtree(unrooted_physeq_DNA) + 
+  # color tips by kingdom 
+  geom_tippoint(mapping = aes(color = Kingdom)) + 
+  scale_color_manual(values = c("goldenrod1", "cornflowerblue", "grey")) +
+  # Add title 
+  labs(title = "Unrooted Tree DNA Samples") + 
+  #move the legend to the bottom 
+  theme(legend.position = "bottom"); kingdom_tree
+
+kingdom_tree_RNA <- 
+  ggtree(unrooted_physeq_RNA) + 
+  # color tips by kingdom 
+  geom_tippoint(mapping = aes(color = Kingdom)) + 
+  scale_color_manual(values = c("goldenrod1", "cornflowerblue", "grey")) +
+  # Add title 
+  labs(title = "Unrooted Tree RNA Samples") + 
+  #move the legend to the bottom 
+  theme(legend.position = "bottom"); kingdom_tree
+
 kingdom_tree
+kingdom_tree_DNA
+kingdom_tree_RNA
 ```
 
 ```{r add-node-labels-to-tree}
@@ -87,7 +125,20 @@ kingdom_node_tree <-
   kingdom_tree + 
   # Add the node label 
   geom_text(aes(label=node), hjust= -0.5, vjust = -0.3, size = 2)
+
+kingdom_node_tree_DNA <- 
+  kingdom_tree_DNA + 
+  # Add the node label 
+  geom_text(aes(label=node), hjust= -0.5, vjust = -0.3, size = 2)
+
+kingdom_node_tree_RNA <- 
+  kingdom_tree_RNA + 
+  # Add the node label 
+  geom_text(aes(label=node), hjust= -0.5, vjust = -0.3, size = 2)
+
 kingdom_node_tree
+kingdom_node_tree_DNA
+kingdom_node_tree_RNA
 ```
 
 ```{r evaluating-node-1721}
@@ -98,7 +149,7 @@ viewClade(kingdom_node_tree +
           node = 1721)
 ```
 
-```{r}
+```{r evaluating-node-1743}
 
 # View a specific clade 
 # Zoom in on origin tree: Node 1743
@@ -128,21 +179,33 @@ We looked at both ASV 375 and 1167 because of the length of the node, but after 
 
 ```{r}
 new_unrooted_tree <- phy_tree(unrooted_physeq)
+new_unrooted_tree_DNA <- phy_tree(unrooted_physeq_DNA)
+new_unrooted_tree_RNA <- phy_tree(unrooted_physeq_RNA)
+
 is.rooted(new_unrooted_tree)
+is.rooted(new_unrooted_tree_DNA)
+is.rooted(new_unrooted_tree_RNA)
 ```
 
 ```{r}
 # Let's midpoint root the tree
 midpoint_rooted_tree <- midpoint.root(new_unrooted_tree)
+midpoint_rooted_tree_DNA <- midpoint.root(new_unrooted_tree_DNA)
+midpoint_rooted_tree_RNA <- midpoint.root(new_unrooted_tree_RNA)
 
 # Is the new tree rooted?
 is.rooted(midpoint_rooted_tree)
+is.rooted(midpoint_rooted_tree_DNA)
+is.rooted(midpoint_rooted_tree_RNA)
 ```
 
-```{r}
+```{r merging-midrooted-tree-with-physeq}
 
 # Merge tree with the physeq
 midroot_physeq <- merge_phyloseq(raw_preprocessed_physeq, midpoint_rooted_tree)
+midroot_physeq_DNA <- merge_phyloseq(raw_preprocessed_physeq_DNA, midpoint_rooted_tree_DNA)
+midroot_physeq_RNA <- merge_phyloseq(raw_preprocessed_physeq_RNA, midpoint_rooted_tree_RNA)
+
 ```
 
 ```{r}
@@ -152,14 +215,18 @@ midroot_physeq
 ggtree(midroot_physeq) + 
   geom_tippoint(mapping = aes(color = Kingdom)) + geom_text(aes(label=node), hjust= -0.5, vjust = -0.3, size = 2)
 
+
+
 ```
 
 ##Save to a new phyloseq object
 
-```{r}
+```{r save-files}
 # Save both phyloseq objects with our tree object to one .RData file 
-save(list = c("unrooted_physeq", "midroot_physeq"),
+save(list = c("unrooted_physeq", "midroot_physeq","unrooted_physeq_DNA","midroot_physeq_DNA","unrooted_physeq_RNA","midroot_physeq_RNA"),
      file = "data/03_Phylogenetic_Tree/phytree_preprocessed_physeq.RData")
+
+
 ```
 
 ##Session Info

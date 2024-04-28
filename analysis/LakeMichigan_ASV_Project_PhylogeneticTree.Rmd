@@ -6,11 +6,6 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 ## Goals
 
 The main goal of this documet is to create a phylogenetic tree.
@@ -21,6 +16,11 @@ Here are the steps:
 2.Create ASV fasta file from the phyloseq object.
 3.Align the 16S sequences from fasta file with MAFFT.
 4.Create a tree with FastTree2
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
 
 ##Set the seed for reproducibility
 
@@ -119,5 +119,13 @@ FastTree -nt -gtr -fastest -log FastTree.log MAFFT_aligned_ASVs.fasta > ASVs_unr
 cd ../../
 pwd 
 echo "The working directory is $PWD"
+```
+
+
+##Session Information
+
+```{r}
+# Ensure reproducibility 
+devtools::session_info()
 ```
 
