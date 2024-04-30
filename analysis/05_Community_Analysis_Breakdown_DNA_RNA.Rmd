@@ -1,0 +1,1216 @@
+---
+title: "Community Analysis"
+author: "Daniyal Tariq"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+##Goals
+
+Load in phyloseq data with rooted tree.
+Evaluate sequencing depth and remove sample.
+Normalize the read counts between samples.
+Calculate community dissimilarities. Numbers between 0 and 1. If 0, completely similar versus if they are 1, then they’re completely dissimilar.
+Sorensen: Shared Species as a binary value: Abundance-unweighted
+Bray-Curtis: Shared Abundant species: Abundance-weighted
+(Abundance-)Weighted UNIFRAC: Consider Abundant Species and where they fall on the tree
+Visualize the community data with two unconstrained Ordinations:
+PCoA: Linear Method. Eigenvalue = how much variation is explained by each axis. Choose to view axis 1, 2, 3, etc. and plot them together.
+NMDS: Non-linear. Smush multiple Dimensions into 2 or 3 axes. Need to report Stress value (ideally <0.15).
+Run statistics with PERMANOVA and betadispR.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##Set seed
+```{r set-seed}
+set.seed(2443)
+```
+
+
+##Load libraries
+```{r load-libraries}
+#install.packages("vegan")
+pacman::p_load(tidyverse, devtools, phyloseq, patchwork, vegan,
+               install = FALSE)
+library(gridExtra)
+
+# Load Lakestie colors 
+lakesite_colors <- c("110" = "dodgerblue4","M15" = "dodgerblue2","M45" = "#D9CC3C","MLB" = "#A0E0BA")
+```
+
+##Load Data
+
+```{r load-data}
+# Load in rooted phylogenetic tree! 
+load("data/03_Phylogenetic_Tree/phytree_preprocessed_physeq.RData")
+```
+
+
+##Explore Read Counts
+
+```{r making-read-count-dfs}
+# Calculate the total number of reads per sample. 
+raw_TotalSeqs_df_combined  <- 
+  midroot_physeq %>%
+  # calculate the sample read sums 
+  sample_sums() %>%
+  data.frame()
+# name the column 
+colnames(raw_TotalSeqs_df_combined)[1] <- "TotalSeqs"
+  
+raw_TotalSeqs_df_DNA  <- 
+  midroot_physeq_DNA %>%
+  # calculate the sample read sums 
+  sample_sums() %>%
+  data.frame()
+# name the column 
+colnames(raw_TotalSeqs_df_DNA)[1] <- "TotalSeqs"
+  
+raw_TotalSeqs_df_RNA  <- 
+  midroot_physeq_RNA %>%
+  # calculate the sample read sums 
+  sample_sums() %>%
+  data.frame()
+# name the column 
+colnames(raw_TotalSeqs_df_RNA)[1] <- "TotalSeqs"
+  
+
+head(raw_TotalSeqs_df_combined)
+head(raw_TotalSeqs_df_DNA)
+head(raw_TotalSeqs_df_RNA)
+
+```
+
+```{r plotting-raw-reads}
+# make histogram of raw reads 
+raw_TotalSeqs_df_combined %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Raw Combined Sequencing Depth Distribution") + 
+  theme_classic()
+
+raw_TotalSeqs_df_DNA %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Raw DNA Sequencing Depth Distribution") + 
+  theme_classic()
+
+raw_TotalSeqs_df_RNA %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Raw RNA Sequencing Depth Distribution") + 
+  theme_classic()
+
+```
+
+
+```{r assessing-min-seq-counts}
+#What are the minimum number of sequences for each rooted physeq object?
+midroot_physeq %>% sample_sums() %>% min()
+midroot_physeq_DNA %>% sample_sums() %>% min()
+midroot_physeq_RNA %>% sample_sums() %>% min()
+
+#The minimum number of sequences for DNA samples = 2582 and for RNA samples = 2142
+
+```
+
+```{r defining-rounding-function}
+#In order to normailze the read counts we first need to import a scale read function from http://deneflab.github.io/MicrobeMiseq/
+
+matround <- function(x){trunc(x+0.5)}
+
+scale_reads <- function(physeq, n = min(sample_sums(physeq)), round = "round") {
+  
+  # transform counts to n
+  physeq.scale <- transform_sample_counts(physeq, function(x) {(n * x/sum(x))})
+  
+  # Pick the rounding functions
+  if (round == "floor"){
+    otu_table(physeq.scale) <- floor(otu_table(physeq.scale))
+  } else if (round == "round"){
+    otu_table(physeq.scale) <- round(otu_table(physeq.scale))
+  } else if (round == "matround"){
+    otu_table(physeq.scale) <- matround(otu_table(physeq.scale))
+  }
+  
+  # Prune taxa and return new phyloseq object
+  physeq.scale <- prune_taxa(taxa_sums(physeq.scale) > 0, physeq.scale)
+  return(physeq.scale)
+}
+```
+
+```{r scaling-reads}
+#Scale the reads using the above function, not we are scaling each object by their minimum number for sequences.
+
+# Scale reads combined DNA/RNA by the above function
+scaled_rooted_physeq <- 
+   midroot_physeq %>%
+  scale_reads(round = "matround")
+
+# Scale reads DNA samples by the above function
+scaled_rooted_physeq_DNA <- 
+  midroot_physeq_DNA %>%
+  scale_reads(round = "matround")
+
+# Scale reads RNA samples by the above function
+scaled_rooted_physeq_RNA <- 
+  midroot_physeq_RNA %>%
+  scale_reads(round = "matround")
+
+# Calculate combined DNA//RNA read depth 
+scaled_TotalSeqs_df <- 
+  scaled_rooted_physeq %>%
+  sample_sums() %>%
+  data.frame()
+colnames(scaled_TotalSeqs_df)[1] <-"TotalSeqs"
+
+head(scaled_TotalSeqs_df) #Inspect to see if the scaling occured
+
+# Calculate DNA samples read depth 
+scaled_TotalSeqs_DNA_df <- 
+  scaled_rooted_physeq_DNA %>%
+  sample_sums() %>%
+  data.frame()
+colnames(scaled_TotalSeqs_DNA_df)[1] <-"TotalSeqs"
+
+head(scaled_TotalSeqs_DNA_df) #Inspect to see if the scaling occured
+
+# Calculate RNA samples read depth 
+scaled_TotalSeqs_RNA_df <- 
+  scaled_rooted_physeq_RNA %>%
+  sample_sums() %>%
+  data.frame()
+colnames(scaled_TotalSeqs_RNA_df)[1] <-"TotalSeqs"
+
+# Inspect
+head(scaled_TotalSeqs_RNA_df)
+
+#Check the range of the data 
+#For Combined,DNA and RNA
+min_seqs_combined <- min(scaled_TotalSeqs_df$TotalSeqs);min_seqs_combined
+min_seqs_DNA <- min(scaled_TotalSeqs_DNA_df$TotalSeqs); min_seqs_DNA
+min_seqs_RNA <- min(scaled_TotalSeqs_RNA_df$TotalSeqs); min_seqs_RNA
+
+max_seqs_combined <- max(scaled_TotalSeqs_df$TotalSeqs);max_seqs_combined
+max_seqs_DNA <- max(scaled_TotalSeqs_DNA_df$TotalSeqs); max_seqs_DNA
+max_seqs_RNA <- max(scaled_TotalSeqs_RNA_df$TotalSeqs); max_seqs_RNA
+#Range 
+max_seqs_combined - min_seqs_combined
+max_seqs_DNA - min_seqs_DNA
+max_seqs_RNA - min_seqs_RNA
+
+# Plot Histogram 
+scaled_TotalSeqs_df %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Scaled Sequencing Depth at 2142") + 
+  theme_classic()
+
+scaled_TotalSeqs_DNA_df %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Scaled Sequencing Depth of DNA only samples at 2582") + 
+  theme_classic()
+
+scaled_TotalSeqs_RNA_df %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Scaled Sequencing Depth of RNA only samples at 2142") + 
+  theme_classic()
+
+```
+
+#We can now start running PCoA with respect to Soreson and Bray-Curtis
+
+```{r}
+# Calculate sorensen dissimilarity: Abundance-unweighted of shared taxa
+scaled_soren_pcoa_DNA <-  
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "PCoA",
+    distance = "bray", binary = TRUE)
+
+#str(scaled_soren_pcoa_DNA)
+
+# Plot the ordination 
+soren_limnion_pcoa_DNA <- plot_ordination(
+  physeq = scaled_rooted_physeq_DNA,
+  ordination = scaled_soren_pcoa_DNA,
+  color = "lakesite",
+  shape = "limnion",
+  title = "Sorensen PCoA DNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = lakesite_colors) + 
+  theme_bw()
+# Show the plot 
+soren_limnion_pcoa_DNA
+
+# Calculate sorensen dissimilarity: Abundance-unweighted of shared taxa
+scaled_soren_pcoa_RNA <-  
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
+    method = "PCoA",
+    distance = "bray", binary = TRUE)
+
+#str(scaled_soren_pcoa_DNA)
+
+# Plot the ordination 
+soren_limnion_pcoa_RNA <- plot_ordination(
+  physeq = scaled_rooted_physeq_RNA,
+  ordination = scaled_soren_pcoa_RNA,
+  color = "lakesite",
+  shape = "limnion",
+  title = "Sorensen PCoA RNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = lakesite_colors) + 
+  theme_bw()
+# Show the plot 
+soren_limnion_pcoa_RNA
+```
+
+```{r}
+#Running PCoA with season as the shape 
+# Plot the ordination 
+soren_season_pcoa_DNA <- plot_ordination(
+  physeq = scaled_rooted_physeq_DNA,
+  ordination = scaled_soren_pcoa_DNA,
+  color = "lakesite",
+  shape = "season",
+  title = "Sorensen PCoA DNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = lakesite_colors) + 
+  theme_bw()
+# Show the plot 
+soren_season_pcoa_DNA
+
+# Plot the ordination 
+soren_season_pcoa_RNA <- plot_ordination(
+  physeq = scaled_rooted_physeq_RNA,
+  ordination = scaled_soren_pcoa_RNA,
+  color = "lakesite",
+  shape = "season",
+  title = "Sorensen PCoA RNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = lakesite_colors) + 
+  theme_bw()
+# Show the plot 
+soren_season_pcoa_RNA
+#Comeback to combine plots
+```
+
+```{r}
+# Calculate the BC distance
+scaled_BC_pcoa_DNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "PCoA",
+    distance = "bray")
+
+scaled_BC_pcoa_RNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
+    method = "PCoA",
+    distance = "bray")
+
+
+
+# Plot the PCoA
+bray_pcoa_limnion_DNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_BC_pcoa_DNA,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Bray-Curtis PCoA DNA Limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+bray_pcoa_limnion_RNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_BC_pcoa_RNA,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Bray-Curtis PCoA RNA Limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+bray_pcoa_season_DNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_BC_pcoa_DNA,
+    color = "lakesite",
+    shape= "season",
+    title = "Bray-Curtis PCoA DNA Season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+bray_pcoa_season_RNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_BC_pcoa_RNA,
+    color = "lakesite",
+    shape= "season",
+    title = "Bray-Curtis PCoA RNA Season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+
+
+
+grid.arrange(bray_pcoa_limnion_DNA,
+bray_pcoa_limnion_RNA,
+bray_pcoa_season_DNA,
+bray_pcoa_season_RNA, ncol=4) 
+```
+
+## Weighted Unifrac
+
+```{r}
+scaled_wUNI_pcoa_combined <- 
+  ordinate(
+    physeq = scaled_rooted_physeq,
+    method = "PCoA",
+    distance = "wunifrac")
+
+scaled_wUNI_pcoa_DNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "PCoA",
+    distance = "wunifrac")
+
+scaled_wUNI_pcoa_RNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
+    method = "PCoA",
+    distance = "wunifrac")
+
+
+# Plot the PCoA
+wUNI_station_pcoa_combined_season <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq,
+    ordination = scaled_wUNI_pcoa_combined,
+    color = "lakesite",
+    shape = "season",
+    title = "Weighted Unifrac PCoA Combined season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_pcoa_combined_limnion <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq,
+    ordination = scaled_wUNI_pcoa_combined,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Weighted Unifrac PCoA Combined limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+
+wUNI_station_pcoa_DNA_season <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_wUNI_pcoa_DNA,
+    color = "lakesite",
+    shape = "season",
+    title = "Weighted Unifrac PCoA DNA season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_pcoa_DNA_limnion <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_wUNI_pcoa_DNA,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Weighted Unifrac PCoA DNA limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_pcoa_RNA_season <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_wUNI_pcoa_RNA,
+    color = "lakesite",
+    shape = "season",
+    title = "Weighted Unifrac PCoA RNA season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_pcoa_RNA_limnion <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_wUNI_pcoa_RNA,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Weighted Unifrac PCoA RNA limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_pcoa_combined_season
+wUNI_station_pcoa_combined_limnion
+wUNI_station_pcoa_DNA_season
+wUNI_station_pcoa_DNA_limnion
+wUNI_station_pcoa_RNA_season
+wUNI_station_pcoa_RNA_limnion
+
+```
+
+```{r}
+# Calculate the Weighted Unifrac distance
+scaled_wUNI_nmds_combined <- 
+  ordinate(
+    physeq = scaled_rooted_physeq,
+    method = "NMDS",
+    distance = "wunifrac")
+
+scaled_wUNI_nmds_DNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "NMDS",
+    distance = "wunifrac")
+
+scaled_wUNI_nmds_RNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
+    method = "NMDS",
+    distance = "wunifrac")
+
+# Plot the PCoA
+wUNI_station_nmds_combined_season <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq,
+    ordination = scaled_wUNI_nmds_combined,
+    color = "lakesite",
+    shape = "season",
+    title = "Weighted Unifrac NMDS combined season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_nmds_combined_limnion <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq,
+    ordination = scaled_wUNI_nmds_combined,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Weighted Unifrac NMDS combined limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_nmds_DNA_season <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_wUNI_nmds_DNA,
+    color = "lakesite",
+    shape = "season",
+    title = "Weighted Unifrac NMDS DNA season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_nmds_DNA_limnion <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_wUNI_nmds_DNA,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Weighted Unifrac NMDS DNA limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_nmds_RNA_season <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_wUNI_nmds_RNA,
+    color = "lakesite",
+    shape = "season",
+    title = "Weighted Unifrac NMDS RNA season") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_nmds_RNA_limnion <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_wUNI_nmds_RNA,
+    color = "lakesite",
+    shape = "limnion",
+    title = "Weighted Unifrac NMDS RNA limnion") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+
+wUNI_station_nmds_combined_season
+wUNI_station_nmds_combined_limnion
+wUNI_station_nmds_DNA_season
+wUNI_station_nmds_DNA_limnion
+wUNI_station_nmds_RNA_season
+wUNI_station_nmds_RNA_limnion
+```
+
+##Statistical Significance Testing
+
+```{r permanova}
+
+# Calculate all three of the distance matrices
+
+scaled_sorensen_dist_combined <- phyloseq::distance(scaled_rooted_physeq, method = "bray", binary = TRUE)
+
+scaled_sorensen_dist_DNA <- phyloseq::distance(scaled_rooted_physeq_DNA, method = "bray", binary = TRUE)
+
+scaled_sorensen_dist_RNA <- phyloseq::distance(scaled_rooted_physeq_RNA, method = "bray", binary = TRUE)
+
+scaled_bray_dist_combined <- phyloseq::distance(scaled_rooted_physeq, method = "bray")
+
+scaled_bray_dist_DNA <- phyloseq::distance(scaled_rooted_physeq_DNA, method = "bray")
+
+scaled_bray_dist_RNA <- phyloseq::distance(scaled_rooted_physeq_RNA, method = "bray")
+
+scaled_wUnifrac_dist_combined <- phyloseq::distance(scaled_rooted_physeq, method = "wunifrac")
+
+scaled_wUnifrac_dist_DNA <- phyloseq::distance(scaled_rooted_physeq_DNA, method = "wunifrac")
+
+scaled_wUnifrac_dist_RNA <- phyloseq::distance(scaled_rooted_physeq_RNA, method = "wunifrac")
+
+# make a data frame from the sample_data
+# All distance matrices will be the same metadata because they 
+# originate from the same phyloseq object. 
+metadata_combined <- data.frame(sample_data(scaled_rooted_physeq))
+metadata_DNA <- data.frame(sample_data(scaled_rooted_physeq_DNA))
+metadata_RNA <- data.frame(sample_data(scaled_rooted_physeq_RNA))
+
+# Adonis test
+# In this example we are testing the hypothesis that the five stations
+# that were collected have different centroids in the ordination space 
+# for each of the dissimilarity metrics, we are using a discrete variable 
+adonis2(scaled_sorensen_dist_combined ~ lakesite, data = metadata_combined)
+adonis2(scaled_bray_dist_combined ~ lakesite, data = metadata_combined)
+adonis2(scaled_wUnifrac_dist_combined ~ lakesite, data = metadata_combined)
+
+adonis2(scaled_sorensen_dist_DNA ~ lakesite, data = metadata_DNA)
+adonis2(scaled_bray_dist_DNA ~ lakesite, data = metadata_DNA)
+adonis2(scaled_wUnifrac_dist_DNA ~ lakesite, data = metadata_DNA)
+
+adonis2(scaled_sorensen_dist_RNA ~ lakesite, data = metadata_RNA)
+adonis2(scaled_bray_dist_RNA ~ lakesite, data = metadata_RNA)
+adonis2(scaled_wUnifrac_dist_RNA ~ lakesite, data = metadata_RNA)
+
+```
+
+
+##BetaDispR
+
+```{r beta-dispr}
+# Homogeneity of Disperson test with beta dispr
+# Sorensen 
+beta_soren_station_combined <- betadisper(scaled_sorensen_dist_combined, metadata_combined$lakesite)
+permutest(beta_soren_station_combined)
+
+# Bray-curtis 
+beta_bray_station_combined <- betadisper(scaled_bray_dist_combined, metadata_combined$lakesite)
+permutest(beta_bray_station_combined)
+
+# Weighted Unifrac 
+beta_unifrac_station_combined <- betadisper(scaled_wUnifrac_dist_combined, metadata_combined$lakesite)
+permutest(beta_unifrac_station_combined)
+
+#Homogeneity of Dispersion test with beta dispr 
+#Soerson DNA
+beta_soren_station_DNA <- betadisper(scaled_sorensen_dist_DNA, metadata_DNA$lakesite)
+permutest(beta_soren_station_DNA)
+
+#Bray-curtis DNA
+beta_bray_station_DNA <- betadisper(scaled_bray_dist_DNA, metadata_DNA$lakesite)
+permutest(beta_bray_station_DNA)
+
+# Weighted Unifrac DNA
+beta_bray_unifrac_DNA <- betadisper(scaled_wUnifrac_dist_DNA, metadata_DNA$lakesite)
+permutest(beta_bray_unifrac_DNA)
+
+#Homogeneity of Dispersion test with beta dispr 
+#Soerson RNA
+beta_soren_station_RNA <- betadisper(scaled_sorensen_dist_RNA, metadata_RNA$lakesite)
+permutest(beta_soren_station_RNA)
+
+#Bray-curtis RNA
+beta_bray_station_RNA <- betadisper(scaled_bray_dist_RNA, metadata_RNA$lakesite)
+permutest(beta_bray_station_RNA)
+
+# Weighted Unifrac rNA
+beta_bray_unifrac_RNA <- betadisper(scaled_wUnifrac_dist_RNA, metadata_RNA$lakesite)
+permutest(beta_bray_unifrac_RNA)
+
+
+```
+
+## Taxonomic Composition
+
+#Phylum
+
+```{r setting-phylum-colors-for-plots}
+# Set the phylum colors
+phylum_colors <- c(
+  Acidobacteriota = "navy", 
+  Actinobacteriota = "darkslategray2", 
+  Armatimonadota = "deeppink1",
+  Alphaproteobacteria = "plum2", 
+  Bacteroidota = "gold", 
+  Betaproteobacteria = "plum1", 
+  Bdellovibrionota = "red1",
+  Chloroflexi="black", 
+  Crenarchaeota = "firebrick",
+  Cyanobacteria = "limegreen",
+  Deltaproteobacteria = "grey", 
+  Desulfobacterota="magenta",
+  Firmicutes = "#3E9B96",
+  Gammaproteobacteria = "greenyellow",
+  "Marinimicrobia (SAR406 clade)" = "yellow",
+  Myxococcota = "#B5D6AA",
+  Nitrospirota = "palevioletred1",
+  Proteobacteria = "royalblue",
+  Planctomycetota = "darkorange", 
+  "SAR324 clade(Marine group B)" = "olivedrab",
+  #Proteobacteria_unclassified = "greenyellow",
+  Thermoplasmatota = "green",
+  Verrucomicrobiota = "darkorchid1")
+ # Other = "grey")
+```
+
+```{r making-phylum-dfs}
+# Calculate the phylum relative abundance 
+# Make different dfs for combined, DNA and RNA samples
+phylum_df_combined <- 
+  scaled_rooted_physeq %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Phylum") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01)
+
+phylum_df_DNA <- 
+  scaled_rooted_physeq_DNA %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Phylum") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01)
+
+phylum_df_RNA <- 
+  scaled_rooted_physeq_RNA %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Phylum") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01)
+
+
+```
+
+
+#Combined Phyla Plots
+```{r plotting-phyla-combined}
+
+# Stacked Bar Plot With All phyla 
+# Plot Phylum Abundances - make sure to load phylum_colors 
+phylum_df_combined %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Bottom") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Bottom Limnion Phylum Composition") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+phylum_df_combined %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Middle") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Middle Limnion Phylum Composition") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+
+phylum_df_combined %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Top") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Top Limnion Phylum Composition") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+```
+
+#Phyla plots from DNA samples
+
+```{r plotting-phyla-DNA}
+
+phylum_df_DNA %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Top") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Top Limnion Phylum Composition DNA") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+phylum_df_DNA %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Middle") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Middle Limnion Phylum Composition DNA") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+phylum_df_DNA %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Bottom") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Bottom Limnion Phylum Composition DNA") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+```
+
+#Phyla from RNA samples
+
+```{r plotting-phyla-active-taxa}
+
+phylum_df_RNA <- 
+  scaled_rooted_physeq_RNA %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Phylum") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01)
+
+phylum_df_RNA %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Middle") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Middle Limnion Phylum Composition RNA") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+phylum_df_RNA %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Bottom") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Bottom Limnion Phylum Composition RNA") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+phylum_df_RNA %>%
+  # Warning: It's important to have one sample per x value, 
+  # otherwise, it will take the sum between multiple samples
+  dplyr::filter(limnion == "Top") %>% 
+  ggplot(aes(x = lakesite, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum~season, scale = "free") +
+  geom_bar(stat = "identity", color = "black") + 
+  labs(title = "Top Limnion Phylum Composition RNA") + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+```
+
+
+#Narrowing in on specific phyla
+
+
+```{r}
+# Narrow in on a specific group
+# Actinobacteriota - y: abundance, x: station, dot plot + boxplot
+
+
+```
+
+
+##Family
+
+
+```{r making-family-dfs}
+# Calculate the Family relative abundance for each sample
+# # Make separate dfs for combined, DNA and RNA samples
+family_df_combined <- 
+  scaled_rooted_physeq %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Family") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01) 
+
+family_df_DNA <- 
+  scaled_rooted_physeq_DNA %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Family") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01) 
+
+family_df_RNA <- 
+  scaled_rooted_physeq_RNA %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Family") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01) 
+
+
+```
+
+
+```{r plotting-family}
+#Judging from the Phylum plots we identified Cyanobacteria,Actinobacteriota and Verrucomicrobiota as the most interesting Phyla to discet further as they seem to be quite abudant and vary between season and limnion.
+# Cyanobacteria Families in DNA sample 
+# Plot family 
+cyano_season_DNA <- family_df_DNA %>%
+  dplyr::filter(Phylum == "Cyanobacteria") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~season, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Cyanobacteria Family Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+
+actin_season_dna <- family_df_DNA %>%
+  dplyr::filter(Phylum == "Actinobacteriota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~season, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Actinobacteriota Family Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+#actin_dna sanity check
+
+verru_season_dna <- family_df_DNA %>%
+  dplyr::filter(Phylum == "Verrucomicrobiota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~season, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = " VerrucomicrobiotaFamily Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+#verru_dna sanity check
+
+#Now we will check the DNA families faceting by limnion
+# Cyanobacteria Families in DNA sample 
+# Plot family 
+cyano_lim_DNA <- family_df_DNA %>%
+  dplyr::filter(Phylum == "Cyanobacteria") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~limnion, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Cyanobacteria Family Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+
+actin_lim_dna <- family_df_DNA %>%
+  dplyr::filter(Phylum == "Actinobacteriota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~limnion, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Actinobacteriota Family Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+#actin_dna sanity check
+
+verru_limnion_dna <- family_df_DNA %>%
+  dplyr::filter(Phylum == "Verrucomicrobiota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~limnion, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = " VerrucomicrobiotaFamily Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+#verru_dna sanity check
+
+#RNA Samples Plot
+
+cyano_season_RNA <- family_df_RNA %>%
+  dplyr::filter(Phylum == "Cyanobacteria") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~season, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Cyanobacteria RNA Family Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+
+actin_season_rna <- family_df_RNA %>%
+  dplyr::filter(Phylum == "Actinobacteriota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~season, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Actinobacteriota Family RNA Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+#actin_dna sanity check
+
+verru_season_rna <- family_df_RNA %>%
+  dplyr::filter(Phylum == "Verrucomicrobiota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~season, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = " Verrucomicrobiota Family RNA Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+#RNA Limnion Samples
+cyano_lim_RNA <- family_df_RNA %>%
+  dplyr::filter(Phylum == "Cyanobacteria") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~limnion, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Cyanobacteria RNA Family Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+
+actin_lim_rna <- family_df_RNA %>%
+  dplyr::filter(Phylum == "Actinobacteriota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~limnion, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = "Actinobacteriota Family RNA Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+#actin_dna sanity check
+
+verru_lim_rna <- family_df_RNA %>%
+  dplyr::filter(Phylum == "Verrucomicrobiota") %>%
+  # build the plot 
+  ggplot(aes(x = lakesite, y = Abundance, 
+             fill = lakesite, color = lakesite)) + 
+  facet_grid(Family~limnion, scale = "free") +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot 
+  geom_jitter() + 
+  theme_bw() + 
+  labs(title = " Verrucomicrobiota Family RNA Abundance") + 
+  scale_color_manual(values = lakesite_colors) + 
+  scale_fill_manual(values = lakesite_colors) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+        legend.position = "bottom")
+
+verru_lim_rna
+actin_lim_rna
+```
+
+##Genus
+
+```{r making-genus-dfs}
+# Calculate the genus relative abundance for each sample
+# Make separate dfs for combined, DNA and RNA samples
+genus_df <- 
+  scaled_rooted_physeq %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Genus") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01) 
+ 
+
+genus_df_DNA <- 
+  scaled_rooted_physeq_DNA %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Genus") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01) 
+  
+genus_df_RNA <- 
+  scaled_rooted_physeq_RNA %>%
+  # agglomerate at the phylum level 
+  tax_glom(taxrank = "Genus") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt() %>%
+  # Filter out Phyla that are <1% - get rid of low abundant Phyla
+  dplyr::filter(Abundance > 0.01) 
+
+
+```
+
+```{r plotting-genus}
+# Actinobacteriota
+# Plot genus 
+
+
+# Cyanobacteria 
+# Plot genus 
+
+```
+
+##Session Information
+
+```{r session-info}
+devtools::session_info()
+```
+
