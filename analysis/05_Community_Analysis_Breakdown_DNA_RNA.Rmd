@@ -9,17 +9,18 @@ editor_options:
 
 ##Goals
 
-Load in phyloseq data with rooted tree.
-Evaluate sequencing depth and remove sample.
-Normalize the read counts between samples.
-Calculate community dissimilarities. Numbers between 0 and 1. If 0, completely similar versus if they are 1, then they’re completely dissimilar.
-Sorensen: Shared Species as a binary value: Abundance-unweighted
-Bray-Curtis: Shared Abundant species: Abundance-weighted
-(Abundance-)Weighted UNIFRAC: Consider Abundant Species and where they fall on the tree
-Visualize the community data with two unconstrained Ordinations:
+1.Load in phyloseq data with rooted tree.
+2.Evaluate sequencing depth and remove sample.
+3.Normalize the read counts between samples.
+4.Calculate community dissimilarities. 
+
+[Sorensen: Shared Species as a binary value: Abundance-unweighted,Bray-Curtis: Shared Abundant species: Abundance-weighted,
+(Abundance-)Weighted UNIFRAC: Consider Abundant Species and where they fall on phylogenetic the tree]
+
+5.Visualize the community data with two unconstrained Ordinations:
 PCoA: Linear Method. Eigenvalue = how much variation is explained by each axis. Choose to view axis 1, 2, 3, etc. and plot them together.
 NMDS: Non-linear. Smush multiple Dimensions into 2 or 3 axes. Need to report Stress value (ideally <0.15).
-Run statistics with PERMANOVA and betadispR.
+6.Run statistics with PERMANOVA and betadispR.
 
 
 ```{r setup, include=FALSE}
@@ -288,7 +289,7 @@ grid.arrange(soren_limnion_pcoa_DNA,soren_limnion_pcoa_RNA, ncol=2)
 ```
 
 
-```{r}
+```{r seasonal-dependence-plots}
 
 #Running PCoA with season as the shape 
 # Plot the ordination 
@@ -406,7 +407,7 @@ The PCOAs explain a high percentage of the variance for both the DNA (~45%) and 
 
 ## Weighted Unifrac
 
-```{r}
+```{r wUnifrac-plots}
 scaled_wUNI_pcoa_combined <- 
   ordinate(
     physeq = scaled_rooted_physeq,

@@ -17,9 +17,6 @@ Before we do this we will need to perform some preprocessing on the following fi
 
 We will then remove mitochondrial and chloroplast reads.
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 
 ## Setup
@@ -44,8 +41,7 @@ library(tidyverse)
 ## ASV Table
 ```{r loading-asv-counts}
 # First, load asv table
-load("data/02_DADA2/ASV_counts.RData")
-
+load("./data/02_DADA2/ASV_counts.RData")
 ```
 
 # Fixing Column Names

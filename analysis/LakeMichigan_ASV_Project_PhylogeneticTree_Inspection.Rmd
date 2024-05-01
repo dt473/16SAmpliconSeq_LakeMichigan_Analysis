@@ -179,7 +179,7 @@ barplot(asv_1167_abundance$values,names.arg = asv_1167_abundance$ind, main = "Ab
 barplot(asv_375_abundance$values, names.arg = asv_375_abundance$ind, main = "Abdundance of asv 375 across samples",ylab="abundance",col="blue",las=2)
 ```
 
-We looked at both ASV 375 and 1167 because of the length of the node, but after blasting the sequence, it appears they just originate from the 16S gene of uncharacterized bacteria so we will not be removing these sequences. Moreover, we looked at the abundace of these ASVs and they seemed abundant enough not to exclude.
+We looked at both ASV 375 and 1167 because of the length of the node, but after blasting the sequence, it appears they just originate from the 16S gene of uncharacterized bacteria so we will not be removing these sequences. Moreover, we looked at the abundance of these ASVs and they seemed abundant enough not to exclude.
 
 ##Midroot Tree
 
@@ -224,6 +224,8 @@ ggtree(midroot_physeq) +
 
 
 ```
+
+Based on our anbalysis we do not have enough cause to remove the longest length branches. However, as these two bacterial branches seem to be far longer relative archea any interpretation that uses these ASVs should vetted further. 
 
 ##Save to a new phyloseq object
 
