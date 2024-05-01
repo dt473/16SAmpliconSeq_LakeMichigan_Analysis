@@ -8,7 +8,9 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/04_Beta_Diversity/")
 ```
 
 ## Set Seed
@@ -81,7 +83,7 @@ str(iNEXT_data)
 ```
 
 ## Plot Diversity
-```{r}
+```{r making-df-for-colors}
 # Prepare Colors 
 color_df <- 
   iNEXT_input_df %>%
@@ -92,14 +94,14 @@ head(color_df)
 ```
 
 
-```{r}
+```{r cleaning-up-colors-df}
 # Rename the column 
 colnames(color_df)[1] <- "names"
 # Check
 head(color_df)
 ```
 
-```{r}
+```{r making-helper-df-for-plotting}
 # Make a helper dataframe for plotting with colors 
 iNEXT_color_df <- 
   color_df %>%
@@ -138,7 +140,7 @@ The rarefaction curves look very similar to those we generated in class. We note
 
 #Rarefaction
 
-```{r}
+```{r cleaning-up-iNEXT-df}
 iNEXT_manual_df <- 
   iNEXT_data$iNextEst$size_based %>%
   dplyr::rename(names = Assemblage) %>%
@@ -156,7 +158,7 @@ dim(iNEXT_manual_df)
 ```
 
 
-```{r}
+```{r plotting-rarefaction-curves}
 # Plot it - Rarefaction Curve 
 iNEXT_manual_df %>%
   # Filter out rows that are calcaulted by rarefaction from iNEXT
@@ -198,7 +200,7 @@ head(obs_div_df)
 ```
 
 ## 
-```{r}
+```{r box-plots}
 obs_div_df %>%
   ggplot(aes(x =lakesite_names, y = qD, fill = lakesite, color = lakesite)) + 
   facet_wrap(~Order.q, scales = "free") + 

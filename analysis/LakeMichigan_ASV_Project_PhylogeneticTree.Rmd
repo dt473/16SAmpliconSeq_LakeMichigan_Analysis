@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ##Set the seed for reproducibility
 
-```{r}
+```{r set-seed}
 
 set.seed(2443)
 
@@ -32,7 +32,7 @@ set.seed(2443)
 
 ##Load packages and phyloseq object
 
-```{r}
+```{r load-libraries}
 # phytools, ggtree, RColorBrewer
 pacman::p_load(phytools, ggtree, RColorBrewer, install = FALSE)
 
@@ -97,7 +97,7 @@ pwd
 
 
 ##FastTree2
-```{r}
+```{r run-FastTree, engine='bash', engine.opts ="-l"}
 # Provide export path to fasttree 
 export PATH=/programs/FastTree-2.1.11:$PATH
 
@@ -124,7 +124,7 @@ echo "The working directory is $PWD"
 
 ##Session Information
 
-```{r}
+```{r session-info}
 # Ensure reproducibility 
 devtools::session_info()
 ```

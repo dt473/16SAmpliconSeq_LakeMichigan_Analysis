@@ -8,7 +8,9 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/04_Beta_Diversity/")
 ```
 
 ##Goals
@@ -46,10 +48,10 @@ lakesite_colors <- c("110" = "dodgerblue4","M15" = "dodgerblue2","M45" = "#D9CC3
 ```{r load-data}
 # Load in rooted phylogenetic tree! 
 load("data/03_Phylogenetic_Tree/phytree_preprocessed_physeq.RData")
-midroot_physeq
+
 ```
 
-##Explore Read Counts
+##Explore Read Counts for combined DNA/RNA physeq
 
 ```{r}
 # Calculate the total number of reads per sample. 
@@ -64,19 +66,77 @@ colnames(raw_TotalSeqs_df)[1] <- "TotalSeqs"
 head(raw_TotalSeqs_df)
 ```
 
+##Exploring Read Counts for DNA samples physeq
+
 ```{r}
-# make histogram of raw reads 
+raw_TotalSeqs_df_DNA  <- 
+  midroot_physeq_DNA %>%
+  # calculate the sample read sums 
+  sample_sums() %>%
+  data.frame()
+# name the column 
+colnames(raw_TotalSeqs_df_DNA)[1] <- "TotalSeqs"
+  
+head(raw_TotalSeqs_df_DNA)
+```
+
+##Exploring Read Counts for RNA samples physeq
+
+```{r}
+raw_TotalSeqs_df_RNA  <- 
+  midroot_physeq_RNA %>%
+  # calculate the sample read sums 
+  sample_sums() %>%
+  data.frame()
+# name the column 
+colnames(raw_TotalSeqs_df_RNA)[1] <- "TotalSeqs"
+  
+head(raw_TotalSeqs_df_RNA)
+```
+
+
+```{r}
+# make histogram of raw reads combined
 raw_TotalSeqs_df %>%
   ggplot(aes(x = TotalSeqs)) + 
   geom_histogram(bins = 15) + 
   scale_x_continuous(limits = c(2000, 10000)) + 
-  labs(title = "Raw Sequencing Depth Distribution") + 
+  labs(title = "Raw Combined Sequencing Depth Distribution") + 
   theme_classic()
 ```
 
 ```{r}
+# make histogram of raw reads DNA
+raw_TotalSeqs_df_DNA %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 15) + 
+  scale_x_continuous(limits = c(2000, 10000)) + 
+  labs(title = "Raw DNA Sequencing Depth Distribution") + 
+  theme_classic()
+```
+
+```{r}
+# make histogram of raw reads RNA
+raw_TotalSeqs_df_RNA %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 15) + 
+  scale_x_continuous(limits = c(2000, 10000)) + 
+  labs(title = "Raw RNA Sequencing Depth Distribution") + 
+  theme_classic()
+```
+
+
+```{r}
 # what is the minimum number of sequences 
 midroot_physeq %>%
+  sample_sums() %>%
+  min()
+
+midroot_physeq_DNA %>%
+  sample_sums() %>%
+  min()
+
+midroot_physeq_RNA %>%
   sample_sums() %>%
   min()
 ```
@@ -121,30 +181,47 @@ scale_reads <- function(physeq, n = min(sample_sums(physeq)), round = "round") {
 
 ```{r}
 min(sample_sums(midroot_physeq))
+min(sample_sums(midroot_physeq_DNA))
+min(sample_sums(midroot_physeq_RNA))
 
 ```
 
 ```{r}
 # Scale reads by the above function
 scaled_rooted_physeq <- midroot_physeq %>% scale_reads(round = "matround")
+scaled_rooted_physeq_DNA <- midroot_physeq_DNA %>% scale_reads(round = "matround")
+scaled_rooted_physeq_RNA <- midroot_physeq_RNA %>% scale_reads(round = "matround")
 
 # Calculate the read depth 
 scaled_TotalSeqs_df <- scaled_rooted_physeq %>% sample_sums() %>% data.frame()
+scaled_TotalSeqs_df_DNA <- scaled_rooted_physeq_DNA %>% sample_sums() %>% data.frame()
+scaled_TotalSeqs_df_RNA <- scaled_rooted_physeq_RNA %>% sample_sums() %>% data.frame()
 
 colnames(scaled_TotalSeqs_df)[1] <-"TotalSeqs"
+colnames(scaled_TotalSeqs_df_DNA)[1] <-"TotalSeqs"
+colnames(scaled_TotalSeqs_df_RNA)[1] <-"TotalSeqs"
 
 # Inspect
 head(scaled_TotalSeqs_df)
+head(scaled_TotalSeqs_df_DNA)
+head(scaled_TotalSeqs_df_RNA)
 ```
 
 ```{r}
 
 # Check the range of the data 
 min_seqs <- min(scaled_TotalSeqs_df$TotalSeqs); min_seqs
-
 max_seqs <- max(scaled_TotalSeqs_df$TotalSeqs); max_seqs
-
 max_seqs - min_seqs
+
+min_seqs_DNA <- min(scaled_TotalSeqs_df_DNA$TotalSeqs); min_seqs
+max_seqs_DNA <- max(scaled_TotalSeqs_df_DNA$TotalSeqs); max_seqs
+max_seqs_DNA - min_seqs_DNA
+
+min_seqs_RNA <- min(scaled_TotalSeqs_df_RNA$TotalSeqs); min_seqs
+max_seqs_RNA <- max(scaled_TotalSeqs_df_RNA$TotalSeqs); max_seqs
+max_seqs_RNA - min_seqs_RNA
+
 
 ```
 
@@ -154,8 +231,23 @@ scaled_TotalSeqs_df %>%
   ggplot(aes(x = TotalSeqs)) + 
   geom_histogram(bins = 50) + 
   scale_x_continuous(limits = c(0, 10000)) + 
-  labs(title = "Scaled Sequencing Depth at 2194") + 
+  labs(title = "Scaled Sequencing Depth Combined") + 
   theme_classic()
+
+scaled_TotalSeqs_df_DNA %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Scaled Sequencing Depth DNA") + 
+  theme_classic()
+
+scaled_TotalSeqs_df_RNA %>%
+  ggplot(aes(x = TotalSeqs)) + 
+  geom_histogram(bins = 50) + 
+  scale_x_continuous(limits = c(0, 10000)) + 
+  labs(title = "Scaled Sequencing Depth at RNA") + 
+  theme_classic()
+
 ```
 
 ##Calculate & Visualize community dissimilarity
@@ -166,27 +258,61 @@ Sorensen
 
 ```{r}
 # Calculate sorensen dissimilarity: Abundance-unweighted of shared taxa
-scaled_soren_pcoa <-  
+scaled_soren_pcoa_combined <-  
   ordinate(
     physeq = scaled_rooted_physeq,
+    method = "PCoA",
+    distance = "bray", binary = TRUE)
+
+scaled_soren_pcoa_DNA <-  
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "PCoA",
+    distance = "bray", binary = TRUE)
+
+scaled_soren_pcoa_RNA <-  
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
     method = "PCoA",
     distance = "bray", binary = TRUE)
 
 #str(scaled_soren_pcoa)
 
 # Plot the ordination 
-soren_station_pcoa <- plot_ordination(
+soren_station_pcoa_combined <- plot_ordination(
   physeq = scaled_rooted_physeq,
-  ordination = scaled_soren_pcoa,
+  ordination = scaled_soren_pcoa_combined,
   color = "lakesite",
-  shape = "season",
-  title = "Sorensen PCoA by season") +
+  title = "Sorensen PCoA combined samples ") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = lakesite_colors) + 
   theme_bw()
+
+soren_station_pcoa_DNA <- plot_ordination(
+  physeq = scaled_rooted_physeq_DNA,
+  ordination = scaled_soren_pcoa_DNA,
+  color = "lakesite",
+  title = "Sorensen PCoA DNA samples ") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = lakesite_colors) + 
+  theme_bw()
+
+soren_station_pcoa_RNA <- plot_ordination(
+  physeq = scaled_rooted_physeq_RNA,
+  ordination = scaled_soren_pcoa_RNA,
+  color = "lakesite",
+  title = "Sorensen PCoA RNA samples ") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = lakesite_colors) + 
+  theme_bw()
+
 # Show the plot 
-soren_station_pcoa
+soren_station_pcoa_combined
+soren_station_pcoa_DNA
+soren_station_pcoa_RNA
 ```
 
 ```{r}
@@ -213,31 +339,69 @@ soren_station_pcoa <- plot_ordination(
 # Show the plot 
 soren_station_pcoa
 ```
-
+ The Sorensen PCoA gives us an idea of the presence/absence between samples specifically between lakesite for the above. Since we dissected the samples by DNA and RNA the following interpretation is going be on those respective samples. The DNA sample has 47% of the variation explained by the principle axis while the RNA sample has 40% variation explained by the principle axis. The lake surface samples heavily cluster together for both DNA and RNA indicating that the active/total taxa cluster in a similar manner.
 
 Bray
 
 ```{r}
 # Calculate the BC distance
-scaled_BC_pcoa <- 
+scaled_BC_pcoa_combined <- 
   ordinate(
     physeq = scaled_rooted_physeq,
     method = "PCoA",
     distance = "bray")
 
+scaled_BC_pcoa_DNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "PCoA",
+    distance = "bray")
+
+scaled_BC_pcoa_RNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
+    method = "PCoA",
+    distance = "bray")
+
+
+
 # Plot the PCoA
-bray_station_pcoa <- 
+bray_station_pcoa_combined <- 
   plot_ordination(
     physeq = scaled_rooted_physeq,
-    ordination = scaled_BC_pcoa,
+    ordination = scaled_BC_pcoa_combined,
     color = "lakesite",
-    shape = "nuc_acid_type",
-    title = "Bray-Curtis PCoA") +
+    title = "Bray-Curtis PCoA Combined") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
   scale_color_manual(values = c(lakesite_colors)) + 
   theme_bw()
-bray_station_pcoa
+
+bray_station_pcoa_DNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_BC_pcoa_DNA,
+    color = "lakesite",
+    title = "Bray-Curtis PCoA DNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+bray_station_pcoa_RNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_BC_pcoa_RNA,
+    color = "lakesite",
+    title = "Bray-Curtis PCoA RNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20,21)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+bray_station_pcoa_combined
+bray_station_pcoa_DNA
+bray_station_pcoa_RNA
 ```
 
 ```{r}
@@ -291,25 +455,66 @@ Weighted Unifrac
 
 ```{r}
 # Calculate the BC distance
-scaled_wUNI_pcoa <- 
+scaled_wUNI_pcoa_combined <- 
   ordinate(
     physeq = scaled_rooted_physeq,
     method = "PCoA",
     distance = "wunifrac")
 
+scaled_wUNI_pcoa_DNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "PCoA",
+    distance = "wunifrac")
+
+scaled_wUNI_pcoa_RNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
+    method = "PCoA",
+    distance = "wunifrac")
+
+
 # Plot the PCoA
-wUNI_station_pcoa <- 
+wUNI_station_pcoa_combined <- 
   plot_ordination(
     physeq = scaled_rooted_physeq,
-    ordination = scaled_wUNI_pcoa,
+    ordination = scaled_wUNI_pcoa_combined,
     color = "lakesite",
     shape = "lakesite",
-    title = "Weighted Unifrac PCoA") +
+    title = "Weighted Unifrac PCoA Combined") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
   scale_color_manual(values = c(lakesite_colors)) + 
   theme_bw()
-wUNI_station_pcoa
+
+wUNI_station_pcoa_DNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_wUNI_pcoa_DNA,
+    color = "lakesite",
+    shape = "lakesite",
+    title = "Weighted Unifrac PCoA DNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_pcoa_RNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_wUNI_pcoa_RNA,
+    color = "lakesite",
+    shape = "lakesite",
+    title = "Weighted Unifrac PCoA RNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_pcoa_combined
+wUNI_station_pcoa_DNA
+wUNI_station_pcoa_RNA
+
 ```
 
 ```{r}
@@ -365,27 +570,67 @@ Weighted Unifrac
 
 ```{r}
 # Calculate the Weighted Unifrac distance
-scaled_wUNI_nmds <- 
+scaled_wUNI_nmds_combined <- 
   ordinate(
     physeq = scaled_rooted_physeq,
+    method = "NMDS",
+    distance = "wunifrac")
+
+scaled_wUNI_nmds_DNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_DNA,
+    method = "NMDS",
+    distance = "wunifrac")
+
+scaled_wUNI_nmds_RNA <- 
+  ordinate(
+    physeq = scaled_rooted_physeq_RNA,
     method = "NMDS",
     distance = "wunifrac")
 ```
 
 ```{r}
 # Plot the PCoA
-wUNI_station_nmds <- 
+wUNI_station_nmds_combined <- 
   plot_ordination(
     physeq = scaled_rooted_physeq,
-    ordination = scaled_wUNI_nmds,
+    ordination = scaled_wUNI_nmds_combined,
     color = "lakesite",
     shape = "nuc_acid_type",
-    title = "Weighted Unifrac NMDS") +
+    title = "Weighted Unifrac NMDS combined") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17)) +
   scale_color_manual(values = c(lakesite_colors)) + 
   theme_bw()
-wUNI_station_nmds
+
+wUNI_station_nmds_DNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_DNA,
+    ordination = scaled_wUNI_nmds_DNA,
+    color = "lakesite",
+    shape = "nuc_acid_type",
+    title = "Weighted Unifrac NMDS DNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_nmds_RNA <- 
+  plot_ordination(
+    physeq = scaled_rooted_physeq_RNA,
+    ordination = scaled_wUNI_nmds_RNA,
+    color = "lakesite",
+    shape = "nuc_acid_type",
+    title = "Weighted Unifrac NMDS DNA") +
+  geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
+  scale_shape_manual(values = c(15,16,17)) +
+  scale_color_manual(values = c(lakesite_colors)) + 
+  theme_bw()
+
+wUNI_station_nmds_combined
+wUNI_station_nmds_DNA
+wUNI_station_nmds_RNA
+
 ```
 
 ```{r}

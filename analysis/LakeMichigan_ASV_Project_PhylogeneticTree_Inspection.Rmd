@@ -19,7 +19,9 @@ editor_options:
   2. Rooted tree phyloseq object.
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/03_Phylogenetic_Tree/")
 ```
 
   
@@ -166,18 +168,22 @@ viewClade(kingdom_node_tree +
           node = 4605)
 ```
 
-```{r}
-unrooted_physeq %>%
-  subset_taxa(., ASV == "ASV_1167") %>%
-  tax_table() %>%
-  data.frame()
+## Looking at abundances of suprious ASVs
+```{r checking-spurious-asv-abundance}
+
+otu_table_spurious <- otu_table(unrooted_physeq)
+asv_1167_abundance <- otu_table_spurious["ASV_1167",] %>% data.frame() %>% stack() %>% filter(values > 0)
+asv_375_abundance <- otu_table_spurious["ASV_375",] %>% data.frame() %>% stack() %>% filter(values > 0)
+
+barplot(asv_1167_abundance$values,names.arg = asv_1167_abundance$ind, main = "Abdundance of asv 1167 across samples",ylab="abundance",col="blue",las=2)
+barplot(asv_375_abundance$values, names.arg = asv_375_abundance$ind, main = "Abdundance of asv 375 across samples",ylab="abundance",col="blue",las=2)
 ```
 
-We looked at both ASV 375 and 1167 because of the length of the node, but after blasting the sequence, it appears they just originate from the 16S gene of uncharacterized bacteria so we will not be removing these sequences.
+We looked at both ASV 375 and 1167 because of the length of the node, but after blasting the sequence, it appears they just originate from the 16S gene of uncharacterized bacteria so we will not be removing these sequences. Moreover, we looked at the abundace of these ASVs and they seemed abundant enough not to exclude.
 
 ##Midroot Tree
 
-```{r}
+```{r making-unrooted-trees}
 new_unrooted_tree <- phy_tree(unrooted_physeq)
 new_unrooted_tree_DNA <- phy_tree(unrooted_physeq_DNA)
 new_unrooted_tree_RNA <- phy_tree(unrooted_physeq_RNA)
@@ -187,7 +193,7 @@ is.rooted(new_unrooted_tree_DNA)
 is.rooted(new_unrooted_tree_RNA)
 ```
 
-```{r}
+```{r midrooting-trees}
 # Let's midpoint root the tree
 midpoint_rooted_tree <- midpoint.root(new_unrooted_tree)
 midpoint_rooted_tree_DNA <- midpoint.root(new_unrooted_tree_DNA)
@@ -208,7 +214,7 @@ midroot_physeq_RNA <- merge_phyloseq(raw_preprocessed_physeq_RNA, midpoint_roote
 
 ```
 
-```{r}
+```{r quick-tree-inspection}
 midroot_physeq
 
 # Quick inspection of tree 

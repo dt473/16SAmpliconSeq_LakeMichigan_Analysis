@@ -81,7 +81,7 @@ tax_mat <-
 
 ## Track Reads Data
 
-```{r}
+```{r load-track-reads-data}
 load("data/02_DADA2/track_read_counts.RData")
 
 # Initial data inspection
@@ -91,7 +91,7 @@ dim(track_counts_df)
 
 # Inspecting the metadata
 
-```{r}
+```{r metadata-inspection}
 
 metadata_df <- read.csv("data/metadata.csv")
 dim(metadata_df)
@@ -102,7 +102,7 @@ head(track_counts_df)
 ```
 
 # Combining track read counts with metadata
-```{r}
+```{r merging-tracked-reads-with-metadata}
 metadata_track_reads_df <- 
   metadata_df %>%
   left_join(., track_counts_df, by = "names") 
@@ -111,7 +111,7 @@ metadata_track_reads_df <-
 head(metadata_track_reads_df)
 ```
 
-```{r}
+```{r cleaning-up-merged-df}
 # Update row.names to be sample names 
 ## Before 
 row.names(metadata_track_reads_df)
@@ -128,7 +128,7 @@ head(metadata_track_reads_df)
 ## Handing off our files to phyloseq
 
 # Final check to make sure all objects have the expected dimensions
-```{r}
+```{r final-object-inspection}
 dim(asv_tab)
 dim(tax_mat)
 # Intuition check 
@@ -136,7 +136,7 @@ stopifnot(row.names(asv_tab) == row.names(tax_mat))
 ```
 
 # Creating the phyloseq object
-```{r}
+```{r making-physeq-object}
 # Construct the phyloseq object 
 raw_physeq <- phyloseq(otu_table(asv_tab, taxa_are_rows = TRUE),
                        sample_data(metadata_track_reads_df),
@@ -212,7 +212,7 @@ Looks like all ASVs in the control samples have a zero count. It would appear th
 
 ## Evaluating Mock Community
 
-```{r}
+```{r removing-mock-samples}
 
 mock_community_sample_names <- c("mockA06222016","mockB06222016", "mockC06222016", "mockD06222016")
 
@@ -240,7 +240,7 @@ noMockControlsChlorosMitos_physeq
 
 
 
-```{r}
+```{r making-df-without-mock}
 
 seqSums_df <- noMockControlsChlorosMitos_physeq %>%
   otu_table() %>%
@@ -260,7 +260,7 @@ dim(seqSums_df)
 ```
 
 
-```{r}
+```{r checking-seq-depth}
 # Show the depth of samples 
 seqSums_df %>%
   dplyr::select(names, TotalSeqs) %>%
@@ -280,7 +280,7 @@ seqSums_df %>%
 ```
 
 ## Evaluate the sequencing depth
-```{r}
+```{r more-seq-depth-assessment}
 noMockControlsChlorosMitos_physeq
 
 # What is the library size/sequencing depth for each sample? 
@@ -301,7 +301,7 @@ dim(seqSums_df)
 
 ```
 
-```{r}
+```{r depth-continued}
 # Show the depth of samples 
 seqSums_df %>%
   dplyr::select(names, TotalSeqs) %>%
@@ -322,7 +322,7 @@ seqSums_df %>%
 
 #Remove samples with few reads
 
-```{r}
+```{r checking-min-seq-depth}
 # What's the min seq depth? 
 min(sample_sums(noMockControlsChlorosMitos_physeq))
 
@@ -334,7 +334,7 @@ names_r <- subset_1$names
 
 ```
 
-```{r}
+```{r removing-low-depth-samples}
 raw_preprocessed_physeq <- 
   noMockControlsChlorosMitos_physeq %>%
   subset_samples(., !(names %in% names_r))
@@ -346,7 +346,7 @@ min(sample_sums(raw_preprocessed_physeq))
 
 ## Save file
 
-```{r}
+```{r save-file}
 save(raw_preprocessed_physeq,
      file = "data/02_PreProcessing/raw_preprocessed_physeq.RData")
 ```

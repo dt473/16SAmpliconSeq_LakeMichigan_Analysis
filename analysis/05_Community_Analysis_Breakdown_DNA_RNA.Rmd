@@ -23,7 +23,9 @@ Run statistics with PERMANOVA and betadispR.
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/05_Community_Analysis_Breakdown/")
 ```
 
 
@@ -234,8 +236,10 @@ scaled_TotalSeqs_RNA_df %>%
 
 #We can now start running PCoA with respect to Soreson and Bray-Curtis
 
-```{r}
+```{r plotting-sorenson-pcoa-for-depths}
+
 # Calculate sorensen dissimilarity: Abundance-unweighted of shared taxa
+# Running PCoA with limnion as the shape 
 scaled_soren_pcoa_DNA <-  
   ordinate(
     physeq = scaled_rooted_physeq_DNA,
@@ -250,13 +254,11 @@ soren_limnion_pcoa_DNA <- plot_ordination(
   ordination = scaled_soren_pcoa_DNA,
   color = "lakesite",
   shape = "limnion",
-  title = "Sorensen PCoA DNA") +
+  title = "Sorensen PCoA All Taxa (DNA)") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
   scale_color_manual(values = lakesite_colors) + 
   theme_bw()
-# Show the plot 
-soren_limnion_pcoa_DNA
 
 # Calculate sorensen dissimilarity: Abundance-unweighted of shared taxa
 scaled_soren_pcoa_RNA <-  
@@ -273,16 +275,21 @@ soren_limnion_pcoa_RNA <- plot_ordination(
   ordination = scaled_soren_pcoa_RNA,
   color = "lakesite",
   shape = "limnion",
-  title = "Sorensen PCoA RNA") +
+  title = "Sorensen PCoA Active Taxa (RNA)") +
   geom_point(size=5, alpha = 0.5, aes(color = lakesite)) +
   scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
   scale_color_manual(values = lakesite_colors) + 
   theme_bw()
+
 # Show the plot 
-soren_limnion_pcoa_RNA
+grid.arrange(soren_limnion_pcoa_DNA,soren_limnion_pcoa_RNA, ncol=2) 
+
+
 ```
 
+
 ```{r}
+
 #Running PCoA with season as the shape 
 # Plot the ordination 
 soren_season_pcoa_DNA <- plot_ordination(
@@ -295,8 +302,8 @@ soren_season_pcoa_DNA <- plot_ordination(
   scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
   scale_color_manual(values = lakesite_colors) + 
   theme_bw()
-# Show the plot 
-soren_season_pcoa_DNA
+
+
 
 # Plot the ordination 
 soren_season_pcoa_RNA <- plot_ordination(
@@ -309,12 +316,17 @@ soren_season_pcoa_RNA <- plot_ordination(
   scale_shape_manual(values = c(15,16,17,18, 19, 20)) +
   scale_color_manual(values = lakesite_colors) + 
   theme_bw()
+
 # Show the plot 
-soren_season_pcoa_RNA
-#Comeback to combine plots
+grid.arrange(soren_season_pcoa_DNA,soren_season_pcoa_RNA,ncol=2)
+
+
 ```
 
-```{r}
+The PCoAs explain a fair amount of variation for RNA/DNA about 47% for DNA and 40.3% for RNA. The clustering seems quite similar between the DNA and RNA samples this indicates with the MLB(surface) samples seem to cluster in two regions. The liminions do not seem to match indicating that the the variation may not be due to the liminion. The other samples seem to be spread quite wide with no clear pattern arising. Though the DNA and RNA seem to cluster similarly a point of note is that there seems to be a larger difference in the RNA surface MLB cluster on the second axis indicating that there is a difference in active taxa relative to total taxa, this does not seem to be limnion dependant. 
+
+
+```{r plotting-bray-curtis-pcoa}
 # Calculate the BC distance
 scaled_BC_pcoa_DNA <- 
   ordinate(
@@ -381,12 +393,16 @@ bray_pcoa_season_RNA <-
 
 
 
-
+#Show limnion plot
 grid.arrange(bray_pcoa_limnion_DNA,
-bray_pcoa_limnion_RNA,
-bray_pcoa_season_DNA,
-bray_pcoa_season_RNA, ncol=4) 
+bray_pcoa_limnion_RNA, ncol=2)
+
+#Show season plot
+grid.arrange(bray_pcoa_season_DNA,
+bray_pcoa_season_RNA, ncol=2) 
 ```
+
+The PCOAs explain a high percentage of the variance for both the DNA (~45%) and RNA(~40%) samples. The top plots look at the limnion dependence of the abundant taxa and we can see that the points aren't clustering based on shape. However, we see that the points cluster closely based on both shape (representing season) and color (representing lakesite) for the season plots. We see that the surface taxa once again cluster distinctly along the first axis for all these plots, indicating that they are quite different from the other depths that were sampled.
 
 ## Weighted Unifrac
 
@@ -484,16 +500,21 @@ wUNI_station_pcoa_RNA_limnion <-
   scale_color_manual(values = c(lakesite_colors)) + 
   theme_bw()
 
-wUNI_station_pcoa_combined_season
-wUNI_station_pcoa_combined_limnion
-wUNI_station_pcoa_DNA_season
-wUNI_station_pcoa_DNA_limnion
-wUNI_station_pcoa_RNA_season
-wUNI_station_pcoa_RNA_limnion
+grid.arrange(wUNI_station_pcoa_combined_season,wUNI_station_pcoa_combined_limnion,ncol=2)
+
+#Difference between seasons
+grid.arrange(wUNI_station_pcoa_DNA_season, wUNI_station_pcoa_RNA_season,ncol=2)
+
+#Difference between depths
+grid.arrange(wUNI_station_pcoa_DNA_limnion, wUNI_station_pcoa_RNA_limnion,ncol=2)
 
 ```
 
-```{r}
+
+The PCOAs explain a high percentage of the variance for both the DNA (~45%) and RNA(~47%) samples. We do not see a limnion or season dependence for the weighted uniFRAC distance. We did note one interesting feature, however. For the 110 site, there seems to be a cluster in the DNA samples showing that the total taxa present at this site are quite evolutionary similar. The active taxa, however, which we are inferring from the RNA samples show no clustering indicating that they are phylogenetically different.
+
+
+```{r nmds}
 # Calculate the Weighted Unifrac distance
 scaled_wUNI_nmds_combined <- 
   ordinate(
@@ -587,13 +608,15 @@ wUNI_station_nmds_RNA_limnion <-
   theme_bw()
 
 
-wUNI_station_nmds_combined_season
-wUNI_station_nmds_combined_limnion
-wUNI_station_nmds_DNA_season
-wUNI_station_nmds_DNA_limnion
-wUNI_station_nmds_RNA_season
-wUNI_station_nmds_RNA_limnion
+grid.arrange(wUNI_station_nmds_combined_season, wUNI_station_nmds_combined_limnion, ncol=2)
+
+grid.arrange(wUNI_station_nmds_DNA_season, wUNI_station_nmds_RNA_season,ncol=2)
+
+grid.arrange(wUNI_station_nmds_DNA_limnion, wUNI_station_nmds_RNA_limnion,ncol=2)
+
 ```
+
+These NMDS plots don't reveal any salient features, other than clustering based on lakesite.
 
 ##Statistical Significance Testing
 
@@ -644,6 +667,7 @@ adonis2(scaled_wUnifrac_dist_RNA ~ lakesite, data = metadata_RNA)
 
 ```
 
+Using lakesite as our primary explanatory variable, we see that we see statistical significance for all our dissimilarity metrics when we conduct a PERMANOVA analysis. This indicates that the community composition is different at a statistically significant level between each of the different depths that were sampled and this is true for the total taxa (indicated by the DNA samples) as well as the active taxa (indicated by the RNA samples).
 
 ##BetaDispR
 
@@ -689,6 +713,8 @@ permutest(beta_bray_unifrac_RNA)
 
 
 ```
+
+The high p-values from the betadisper test indicate that the variability is fairly homogeneous across our different samples.
 
 ## Taxonomic Composition
 
@@ -849,6 +875,16 @@ phylum_df_DNA %>%
 
 ```
 
+Top Limnion: For the total taxa based on lakesite we see slight increase in Actinobacteriota in summer throughout each lakesite and this seems to be the most abundant phyla. These are not the dominant active taxa, however. The dominant taxa according to the RNA samples are Verrucomicrobiota and Proteobacteria.Armatiomondota seem primarily to be at the surface and do not make appear in the active taxa. Cyanobacteria seem to be quite abundant in fall and summer across lake site. Interestingly the 15 meter lakesite seems to be unique in having cyanobateria in spring. 
+
+
+
+Middle Limnion: The only middle limnion lakesite sampled was 110m from the shore. The total taxa for the middle limnion is dominated by actinobacteriota and bacteroidota across season with marked increase in verrucomicrobiota in summer. This tracks well with the RNA samples, indicating similar trends between the total and active taxa.
+
+Bottom Limnion: We similar trends of actinobacteriota to the top and middle limnion with similar trends across season. A point of note is that there seems to be no cyanobacteria present at any lakesite in spring. This limnion is also dominated by verrucomicriobiota. The active taxa track nicely with the total taxa for this depth, with the exception of Chloroflexi that make up a sizeable portion of the active taxa.
+
+
+
 #Phyla from RNA samples
 
 ```{r plotting-phyla-active-taxa}
@@ -874,7 +910,8 @@ phylum_df_RNA %>%
   labs(title = "Middle Limnion Phylum Composition RNA") + 
   scale_fill_manual(values = phylum_colors) + 
   theme_bw() + 
-  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) 
+
 
 phylum_df_RNA %>%
   # Warning: It's important to have one sample per x value, 
@@ -899,17 +936,6 @@ phylum_df_RNA %>%
   scale_fill_manual(values = phylum_colors) + 
   theme_bw() + 
   theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
-
-```
-
-
-#Narrowing in on specific phyla
-
-
-```{r}
-# Narrow in on a specific group
-# Actinobacteriota - y: abundance, x: station, dot plot + boxplot
-
 
 ```
 
@@ -1152,61 +1178,23 @@ verru_lim_rna <- family_df_RNA %>%
   theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
         legend.position = "bottom")
 
-verru_lim_rna
+cyano_lim_DNA
+cyano_season_DNA
+verru_limnion_dna
+verru_season_rna
+actin_season_dna
+actin_season_rna
+
+cyano_lim_RNA
+verru_season_rna
 actin_lim_rna
-```
-
-##Genus
-
-```{r making-genus-dfs}
-# Calculate the genus relative abundance for each sample
-# Make separate dfs for combined, DNA and RNA samples
-genus_df <- 
-  scaled_rooted_physeq %>%
-  # agglomerate at the phylum level 
-  tax_glom(taxrank = "Genus") %>% 
-  # Transform counts to relative abundance 
-  transform_sample_counts(function (x) {x/sum(x)}) %>%
-  # Melt to a long format 
-  psmelt() %>%
-  # Filter out Phyla that are <1% - get rid of low abundant Phyla
-  dplyr::filter(Abundance > 0.01) 
- 
-
-genus_df_DNA <- 
-  scaled_rooted_physeq_DNA %>%
-  # agglomerate at the phylum level 
-  tax_glom(taxrank = "Genus") %>% 
-  # Transform counts to relative abundance 
-  transform_sample_counts(function (x) {x/sum(x)}) %>%
-  # Melt to a long format 
-  psmelt() %>%
-  # Filter out Phyla that are <1% - get rid of low abundant Phyla
-  dplyr::filter(Abundance > 0.01) 
-  
-genus_df_RNA <- 
-  scaled_rooted_physeq_RNA %>%
-  # agglomerate at the phylum level 
-  tax_glom(taxrank = "Genus") %>% 
-  # Transform counts to relative abundance 
-  transform_sample_counts(function (x) {x/sum(x)}) %>%
-  # Melt to a long format 
-  psmelt() %>%
-  # Filter out Phyla that are <1% - get rid of low abundant Phyla
-  dplyr::filter(Abundance > 0.01) 
-
+cyano_season_RNA
+actin_season_rna
+verru_season_rna
 
 ```
 
-```{r plotting-genus}
-# Actinobacteriota
-# Plot genus 
-
-
-# Cyanobacteria 
-# Plot genus 
-
-```
+These plots show that for the Cyanobacteria the most abundant family is the Cyanoblaceae across all the depths that were sampled. This is also the most active family as well. The only other noteworthy feature of these plots is that while 3 Actinobacteriota families are present, only the Sporichthyaceae family is active.
 
 ##Session Information
 

@@ -12,7 +12,9 @@ set.seed(033094)
 ```
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/01_DADA2/")
 ```
 
 ##Loading relevant libraries
@@ -145,7 +147,7 @@ filtered_reads <- filterAndTrim(forward_reads, filtered_forward_reads,
 
 
 
-```{r Assess plot quality}
+```{r Assess-plot-quality}
 # Plot the 12 random samples after QC
 forward_filteredQual_plot_12 <- 
   plotQualityProfile(filtered_forward_reads[random_samples]) + 
@@ -161,7 +163,7 @@ grid.arrange(forward_filteredQual_plot_12, reverse_filteredQual_plot_12, ncol = 
 ```
 
 
-```{r}
+```{r Aggregate-QC-Plots}
 # Aggregate all QC plots 
 # Forward reads
 forward_postQC_plot <- 
@@ -178,7 +180,7 @@ grid.arrange(forward_postQC_plot, reverse_postQC_plot, ncol = 2)
 ```
 
 
-```{r}
+```{r make-filtered_reads-df}
 # Make output into dataframe 
 filtered_df <- as.data.frame(filtered_reads)
 head(filtered_df)
@@ -221,7 +223,7 @@ reverse_error_plot <-
 
 ## Infer ASVs
 
-```{r}
+```{r inferring-ASVs}
 # Infer ASVs on the forward sequences
 dada_forward <- dada(filtered_forward_reads,
                      err = error_forward_reads, 
@@ -237,7 +239,7 @@ dada_reverse[30]
 
 ## Merge ASVs
 
-```{r}
+```{r merge-ASVs}
 # merge forward and reverse ASVs
 merged_ASVs <- mergePairs(dada_forward, filtered_forward_reads, 
                           dada_reverse, filtered_reverse_reads,
@@ -249,7 +251,7 @@ length(merged_ASVs)
 
 ## Create Raw ASV count table
 
-```{r}
+```{r create-raw-count-table}
 # Create the ASV Count Table 
 raw_ASV_table <- makeSequenceTable(merged_ASVs)
 
@@ -292,7 +294,7 @@ data.frame(Seq_Length = nchar(getSequences(raw_ASV_table_trimmed))) %>%
 
 ```
 
-```{r}
+```{r remove-chimeras-in-count-table}
 # Remove the chimeras in the raw ASV table
 noChimeras_ASV_table <- removeBimeraDenovo(raw_ASV_table_trimmed, 
                                            method="consensus", 
@@ -314,7 +316,7 @@ data.frame(Seq_Length_NoChim = nchar(getSequences(noChimeras_ASV_table))) %>%
 
 ## Track the read counts
 
-```{r}
+```{r track-read-counts}
 # A little function to identify number seqs 
 getN <- function(x) sum(getUniques(x))
 
@@ -328,7 +330,7 @@ track <- cbind(filtered_reads,
 head(track)
 ```
 
-```{r}
+```{r clean-up-tracked-reads-df}
 # Update column names to be more informative (most are missing at the moment!)
 colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nochim")
 rownames(track) <- samples
@@ -345,7 +347,7 @@ track_counts_df <-
 DT::datatable(track_counts_df)
 ```
 
-```{r}
+```{r plot-counts}
 # Plot it!
 track_counts_df %>%
   pivot_longer(input:nochim, names_to = "read_type", values_to = "num_reads") %>%
@@ -359,7 +361,8 @@ track_counts_df %>%
   theme_bw()
 ```
 
-```{r}
+```{r classify-ASVs}
+
 # Classify the ASVs against a reference set using the RDP Naive Bayesian Classifier described by Wang et al., (2007) in AEM
 taxa_train <- 
   assignTaxonomy(noChimeras_ASV_table, 
@@ -379,17 +382,17 @@ rownames(taxa_print) <- NULL
 
 ## Preparing data for export
 
-```{r}
+```{r prepare-data-for-export}
 asv_seqs <- colnames(noChimeras_ASV_table)
 asv_seqs[1:5]
 ```
 
-```{r}
+```{r fix-headers}
 asv_headers <- vector(dim(noChimeras_ASV_table)[2], mode = "character")
 asv_headers[1:5]
 ```
 
-```{r}
+```{r fill-ASV-names}
 # loop through vector and fill it in with ASV names 
 for (i in 1:dim(noChimeras_ASV_table)[2]) {
   asv_headers[i] <- paste(">ASV", i, sep = "_")
@@ -399,7 +402,7 @@ for (i in 1:dim(noChimeras_ASV_table)[2]) {
 asv_headers[1:5]
 ```
 
-```{r}
+```{r rename-ASVs}
 ##### Rename ASVs in table then write out our ASV fasta file! 
 #View(noChimeras_ASV_table)
 asv_tab <- t(noChimeras_ASV_table)
@@ -412,9 +415,9 @@ row.names(asv_tab) <- sub(">", "", asv_headers)
 
 ## Taxonomy Table
 
-```{r}
+```{r final-inspection}
 # Inspect the taxonomy table
-View(taxa_addSpecies)
+#View(taxa_addSpecies)
 
 ##### Prepare tax table 
 # Add the ASV sequences from the rownames to a column 
@@ -444,7 +447,7 @@ head(asv_tax)
 stopifnot(asv_tax$ASV == rownames(asv_tax), rownames(asv_tax) == rownames(asv_tab))
 ```
 
-```{r}
+```{r save-files}
 # FIRST, we will save our output as regular files, which will be useful later on. 
 # Save to regular .tsv file 
 # Write BOTH the modified and unmodified ASV tables to a file!
