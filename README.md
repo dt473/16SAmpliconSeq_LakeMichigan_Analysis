@@ -8,7 +8,7 @@ The samples for this dataset were collected at 4 different distances from the sh
 
 Goals of this study:
 
-The main goal of this repo is to perform 16S Amplicon data analysis to identify the active versus dormant taxa present in each of our samples and analyze the trends between different stations and seasons.
+The main goal of this repo is to perform 16S Amplicon data analysis to identify the active versus dormant taxa present in each of our samples and analyze the trends between different stations, seasons and depths sampled. This can be achieved since both the rRNA and rDNA was isolated from each sample with the idea being that the rRNA is coming from taxa that are actively enaged in protein synthesis.
 
 
 Approach:
